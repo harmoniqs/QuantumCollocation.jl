@@ -1,6 +1,6 @@
 <!--```@raw html-->
 <div align="center">
-  <a href="https://github.com/kestrelquantum/Piccolo.jl">
+  <a href="https://github.com/harmoniqs/Piccolo.jl">
     <img src="assets/logo.svg" alt="Piccolo.jl" width="25%"/>
   </a>
 </div>
@@ -11,10 +11,10 @@
       <td align="center">
         <b>Documentation</b>
         <br>
-        <a href="https://kestrelquantum.github.io/QuantumCollocation.jl/stable/">
+        <a href="https://harmoniqs.github.io/QuantumCollocation.jl/stable/">
           <img src="https://img.shields.io/badge/docs-stable-blue.svg" alt="Stable"/>
         </a>
-        <a href="https://kestrelquantum.github.io/QuantumCollocation.jl/dev/">
+        <a href="https://harmoniqs.github.io/QuantumCollocation.jl/dev/">
           <img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Dev"/>
         </a>
         <a href="https://arxiv.org/abs/2305.03261">
@@ -24,11 +24,11 @@
       <td align="center">
         <b>Build Status</b>
         <br>
-        <a href="https://github.com/kestrelquantum/QuantumCollocation.jl/actions/workflows/CI.yml?query=branch%3Amain">
-          <img src="https://github.com/kestrelquantum/QuantumCollocation.jl/actions/workflows/CI.yml/badge.svg?branch=main" alt="Build Status"/>
+        <a href="https://github.com/harmoniqs/QuantumCollocation.jl/actions/workflows/CI.yml?query=branch%3Amain">
+          <img src="https://github.com/harmoniqs/QuantumCollocation.jl/actions/workflows/CI.yml/badge.svg?branch=main" alt="Build Status"/>
         </a>
-        <a href="https://codecov.io/gh/kestrelquantum/QuantumCollocation.jl">
-          <img src="https://codecov.io/gh/kestrelquantum/QuantumCollocation.jl/branch/main/graph/badge.svg" alt="Coverage"/>
+        <a href="https://codecov.io/gh/harmoniqs/QuantumCollocation.jl">
+          <img src="https://codecov.io/gh/harmoniqs/QuantumCollocation.jl/branch/main/graph/badge.svg" alt="Coverage"/>
         </a>
       </td>
       <td align="center">
@@ -65,7 +65,7 @@
     \nonumber & \mathbf{g}(\mathbf{Z}) \le 0  
 \end{aligned}
 ```
-where $\mathbf{Z}$ is a trajectory  containing states and controls, from [NamedTrajectories.jl](https://github.com/kestrelquantum/NamedTrajectories.jl).
+where $\mathbf{Z}$ is a trajectory  containing states and controls, from [NamedTrajectories.jl](https://github.com/harmoniqs/NamedTrajectories.jl).
 
 ### Problem Templates 
 

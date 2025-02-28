@@ -28,7 +28,7 @@ pages = [
 
 format = Documenter.HTML(;
     prettyurls=get(ENV, "CI", "false") == "true",
-    canonical="https://kestrelquantum.github.io/QuantumCollocation.jl",
+    canonical="https://docs.harmoniqs.co/QuantumCollocation.jl",
     edit_link="main",
     assets=String[],
     mathengine = MathJax3(Dict(
@@ -68,6 +68,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/kestrelquantum/QuantumCollocation.jl.git",
+    repo="github.com/harmoniqs/QuantumCollocation.jl.git",
     devbranch="main",
 )
