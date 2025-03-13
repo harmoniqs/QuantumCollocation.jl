@@ -4,7 +4,7 @@ using Literate
 
 push!(LOAD_PATH, joinpath(@__DIR__, "..", "src"))
 
-@info "Building Documenter site for NamedTrajectories.jl"
+@info "Building Documenter site for QuantumCollocation.jl"
 open(joinpath(@__DIR__, "src", "index.md"), write = true) do io
     for line in eachline(joinpath(@__DIR__, "..", "README.md"))
         if occursin("<!--", line) && occursin("-->", line)

@@ -11,10 +11,10 @@
       <td align="center">
         <b>Documentation</b>
         <br>
-        <a href="https://harmoniqs.github.io/QuantumCollocation.jl/stable/">
+        <a href="https://docs.harmoniqs.co/QuantumCollocation/dev/">
           <img src="https://img.shields.io/badge/docs-stable-blue.svg" alt="Stable"/>
         </a>
-        <a href="https://harmoniqs.github.io/QuantumCollocation.jl/dev/">
+        <a href="https://docs.harmoniqs.co/QuantumCollocation/dev/">
           <img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Dev"/>
         </a>
         <a href="https://arxiv.org/abs/2305.03261">
