@@ -120,5 +120,7 @@ function RydbergChainSystem(;
 end
 
 @testitem "Rydberg system test" begin
+    using PiccoloQuantumObjects
+
     @test RydbergChainSystem(N=3,cutoff_order=2,all2all=false) isa QuantumSystem
 end

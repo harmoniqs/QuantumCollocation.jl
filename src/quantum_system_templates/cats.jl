@@ -2,7 +2,7 @@ export CatSystem
 export coherent_ket
 export get_cat_controls
 
-function coherent_ket(α::Union{Real, Complex}, levels::Int)
+function coherent_ket(α::Union{Real, Complex}, levels::Int)::Vector{ComplexF64}
     return [exp(-0.5 * abs2(α)) * α^n / sqrt(factorial(n)) for n in 0:levels-1]
 end
 

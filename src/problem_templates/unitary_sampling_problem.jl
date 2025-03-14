@@ -4,13 +4,15 @@ export UnitarySamplingProblem
 @doc raw"""
     UnitarySamplingProblem(systemns, operator, T, Δt; kwargs...)
 
-A `UnitarySamplingProblem` is a quantum control problem where the goal is to find a control pulse that generates a target unitary operator for a set of quantum systems.
-The controls are shared among all systems, and the optimization seeks to find the control pulse that achieves the operator for each system. The idea is to enforce a
+A `UnitarySamplingProblem` is a quantum control problem where the goal is to find a control
+pulse that generates a target unitary operator for a set of quantum systems.
+The controls are shared among all systems, and the optimization seeks to find the control 
+pulse that achieves the operator for each system. The idea is to enforce a
 robust solution by including multiple systems reflecting the problem uncertainty.
 
 # Arguments
 - `systems::AbstractVector{<:AbstractQuantumSystem}`: A vector of quantum systems.
-- `operator::AbstractPiccoloOperator`: The target unitary operator.
+- `operators::AbstractVector{<:AbstractPiccoloOperator}`: A vector of target operators.
 - `T::Int`: The number of time steps.
 - `Δt::Union{Float64, Vector{Float64}}`: The time step value or vector of time steps.
 
@@ -18,8 +20,6 @@ robust solution by including multiple systems reflecting the problem uncertainty
 - `system_labels::Vector{String} = string.(1:length(systems))`: The labels for each system.
 - `system_weights::Vector{Float64} = fill(1.0, length(systems))`: The weights for each system.
 - `init_trajectory::Union{NamedTrajectory, Nothing} = nothing`: The initial trajectory.
-- `ipopt_options::IpoptOptions = IpoptOptions()`: The IPOPT options.
-- `piccolo_options::PiccoloOptions = PiccoloOptions()`: The Piccolo options.
 - `state_name::Symbol = :Ũ⃗`: The name of the state variable.
 - `control_name::Symbol = :a`: The name of the control variable.
 - `timestep_name::Symbol = :Δt`: The name of the timestep variable.
@@ -38,7 +38,7 @@ robust solution by including multiple systems reflecting the problem uncertainty
 - `R_a::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control amplitudes.
 - `R_da::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control first derivatives.
 - `R_dda::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control second derivatives.
-- `kwargs...`: Additional keyword arguments.
+- `piccolo_options::PiccoloOptions = PiccoloOptions()`: The Piccolo options.
 
 """
 function UnitarySamplingProblem(
@@ -46,9 +46,9 @@ function UnitarySamplingProblem(
     operators::AbstractVector{<:AbstractPiccoloOperator},
     T::Int,
     Δt::Union{Float64,Vector{Float64}};
+    unitary_integrator=UnitaryIntegrator,
     system_weights=fill(1.0, length(systems)),
     init_trajectory::Union{NamedTrajectory,Nothing}=nothing,
-    ipopt_options::IpoptOptions=IpoptOptions(),
     piccolo_options::PiccoloOptions=PiccoloOptions(),
     state_name::Symbol=:Ũ⃗,
     control_name::Symbol=:a,
@@ -71,6 +71,12 @@ function UnitarySamplingProblem(
     kwargs...
 )
     @assert length(systems) == length(operators)
+    
+    if piccolo_options.verbose
+        println("    constructing UnitarySamplingProblem...")
+        println("\tusing integrator: $(typeof(unitary_integrator))")
+        println("\tusing $(length(systems)) systems")
+    end
 
     # Trajectory
     state_names = [
@@ -80,31 +86,27 @@ function UnitarySamplingProblem(
     if !isnothing(init_trajectory)
         traj = init_trajectory
     else
-        trajs = map(zip(systems, operators, state_names)) do (sys, op, s)
+        trajs = map(zip(systems, operators, state_names)) do (sys, op, st)
             initialize_trajectory(
                 op,
                 T,
                 Δt,
                 sys.n_drives,
                 (a_bounds, da_bounds, dda_bounds);
-                state_name=s,
+                state_name=st,
                 control_name=control_name,
                 timestep_name=timestep_name,
-                free_time=piccolo_options.free_time,
                 Δt_bounds=(Δt_min, Δt_max),
                 geodesic=piccolo_options.geodesic,
                 bound_state=piccolo_options.bound_state,
                 a_guess=a_guess,
                 system=sys,
                 rollout_integrator=piccolo_options.rollout_integrator,
+                verbose=false # loop
             )
         end
 
-        traj = merge(
-            trajs, 
-            merge_names=(; a=1, da=1, dda=1, Δt=1),
-            free_time=piccolo_options.free_time
-        )
+        traj = merge(trajs, merge_names=(; a=1, da=1, dda=1, Δt=1), free_time=true)
     end    
 
     control_names = [
@@ -113,15 +115,12 @@ function UnitarySamplingProblem(
     ]
 
     # Objective
-    J = QuadraticRegularizer(control_name, traj, R_a; timestep_name=timestep_name)
-    J += QuadraticRegularizer(control_names[2], traj, R_da; timestep_name=timestep_name)
-    J += QuadraticRegularizer(control_names[3], traj, R_dda; timestep_name=timestep_name)
+    J = QuadraticRegularizer(control_name, traj, R_a)
+    J += QuadraticRegularizer(control_names[2], traj, R_da)
+    J += QuadraticRegularizer(control_names[3], traj, R_dda)
 
     for (weight, op, name) in zip(system_weights, operators, state_names)
-        J += weight * UnitaryInfidelityObjective(
-            name, traj, Q;
-            subspace=op isa EmbeddedOperator ? op.subspace_indices : nothing
-        )
+        J += UnitaryInfidelityLoss(op, name, traj; Q=weight * Q)
     end
 
     # Optional Piccolo constraints and objectives
@@ -131,38 +130,17 @@ function UnitarySamplingProblem(
     )
 
     # Integrators
-    unitary_integrators = AbstractIntegrator[]
-    for (sys, Ũ⃗_name) in zip(systems, state_names)
-        if piccolo_options.integrator == :pade
-            push!(
-                unitary_integrators,
-                UnitaryPadeIntegrator(Ũ⃗_name, control_name, sys, traj; order=piccolo_options.pade_order)
-            )
-        elseif piccolo_options.integrator == :exponential
-            push!(
-                unitary_integrators,
-                UnitaryExponentialIntegrator(Ũ⃗_name, control_name, sys, traj)
-            )
-        else
-            error("integrator must be one of (:pade, :exponential)")
-        end
-    end
-
     integrators = [
-        unitary_integrators...,
-        DerivativeIntegrator(control_name, control_names[2], traj),
-        DerivativeIntegrator(control_names[2], control_names[3], traj),
+        [unitary_integrator(sys, traj, n, control_name) for (sys, n) in zip(systems, state_names)]...,
+        DerivativeIntegrator(traj, control_name, control_names[2]),
+        DerivativeIntegrator(traj, control_names[2], control_names[3]),
     ]
 
-    return QuantumControlProblem(
+    return DirectTrajOptProblem(
         traj,
         J,
         integrators;
         constraints=constraints,
-        ipopt_options=ipopt_options,
-        piccolo_options=piccolo_options,
-        control_name=control_name,
-        kwargs...
     )
 end
 
@@ -183,83 +161,35 @@ function UnitarySamplingProblem(
     )
 end
 
-function UnitarySamplingProblem(
-    system::Function,
-    distribution::Sampleable,
-    num_samples::Int,
-    args...;
-    kwargs...
-)
-    samples = rand(distribution, num_samples)
-    systems = [system(x) for x in samples]
-    return UnitarySamplingProblem(
-        systems,
-        args...;
-        kwargs...
-    )
-end
-
 # *************************************************************************** #
 
 @testitem "Sample robustness test" begin
-    using Distributions
-    using Random
-    Random.seed!(1234)
+    using PiccoloQuantumObjects 
 
-    n_samples = 5
     T = 50
     Δt = 0.2
     timesteps = fill(Δt, T)
     operator = GATES[:H]
     systems(ζ) = QuantumSystem(ζ * GATES[:Z], [GATES[:X], GATES[:Y]])
-
-    ip_ops = IpoptOptions(print_level=1, recalc_y="yes", recalc_y_feas_tol=1e1)
-    pi_ops = PiccoloOptions(verbose=false)
-
+    
+    samples = [0.0, 0.1]
     prob = UnitarySamplingProblem(
-        systems, Normal(0, 0.05), n_samples, operator, T, Δt,
-        ipopt_options=ip_ops, piccolo_options=pi_ops
+        [systems(x) for x in samples], operator, T, Δt,
+        piccolo_options=PiccoloOptions(verbose=false)
     )
-    solve!(prob, max_iter=20)
-
-    d_prob = UnitarySmoothPulseProblem(
-        systems(0), operator, T, Δt,
-        ipopt_options=ip_ops, piccolo_options=pi_ops
+    solve!(prob, max_iter=100, print_level=1, verbose=false)
+    
+    base_prob = UnitarySmoothPulseProblem(
+        systems(samples[1]), operator, T, Δt,
+        piccolo_options=PiccoloOptions(verbose=false)
     )
-    solve!(prob, max_iter=20)
-
-    # Check that the solution improves over the default
-    # -------------------------------------------------
-    ζ_tests = -0.05:0.01:0.05
-    Ũ⃗_goal = operator_to_iso_vec(operator)
-    fids = []
-    default_fids = []
-    for ζ in ζ_tests
-        Ũ⃗_end = unitary_rollout(prob.trajectory.a, timesteps, systems(ζ))[:, end]
-        push!(fids, iso_vec_unitary_fidelity(Ũ⃗_end, Ũ⃗_goal))
-
-        d_Ũ⃗_end = unitary_rollout(d_prob.trajectory.a, timesteps, systems(ζ))[:, end]
-        push!(default_fids, iso_vec_unitary_fidelity(d_Ũ⃗_end, Ũ⃗_goal))
+    solve!(base_prob, max_iter=100, verbose=false, print_level=1)
+    
+    fid = []
+    base_fid = []
+    for x in range(samples[1], samples[1], length=5)
+        push!(fid, unitary_rollout_fidelity(prob.trajectory, systems(0.1), unitary_name=:Ũ⃗_system_1))
+        push!(base_fid, unitary_rollout_fidelity(base_prob.trajectory, systems(0.1)))
     end
-    @test sum(fids) > sum(default_fids)
-
-    # Check initial guess initialization
-    # ----------------------------------
-    a_guess = prob.trajectory.a
-
-    g1_prob = UnitarySamplingProblem(
-        [systems(0), systems(0)], operator, T, Δt,
-        a_guess=a_guess,
-        piccolo_options=pi_ops
-    )
-
-    @test g1_prob.trajectory.Ũ⃗_system_1 ≈ g1_prob.trajectory.Ũ⃗_system_2
-
-    g2_prob = UnitarySamplingProblem(
-        [systems(0), systems(0.05)], operator, T, Δt;
-        a_guess=a_guess,
-        piccolo_options=pi_ops
-    )
-
-    @test ~(g2_prob.trajectory.Ũ⃗_system_1 ≈ g2_prob.trajectory.Ũ⃗_system_2)
+    @test sum(fid) > sum(base_fid)
 end

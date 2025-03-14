@@ -1,9 +1,9 @@
 # ```@meta
 # CollapsedDocStrings = true
 # ```
-# # IpOpt Callbacks
+# # IPOPT Callbacks
 
-# This page describes the callback functions that can be used with the IpOpt solver (in the future, may describe more general callback behavior).
+# This page describes the callback functions that can be used with the IPOPT solver (in the future, may describe more general callback behavior).
 
 # ## Callbacks
 
@@ -13,7 +13,7 @@ using NamedTrajectories
 import ..QuantumStateSmoothPulseProblem
 import ..Callbacks
 
-# By default, IpOpt callbacks are called at each optimization step with the following signature:
+# By default, IPOPT callbacks are called at each optimization step with the following signature:
 function full_argument_list_callback(
     alg_mod::Cint,
     iter_count::Cint,

@@ -5,124 +5,110 @@ export QuantumStateMinimumTimeProblem
     QuantumStateMinimumTimeProblem(traj, sys, obj, integrators, constraints; kwargs...)
     QuantumStateMinimumTimeProblem(prob; kwargs...)
 
-Construct a `QuantumControlProblem` for the minimum time problem of reaching a target state.
-
-# Arguments
-- `traj::NamedTrajectory`: The initial trajectory.
-- `sys::QuantumSystem`: The quantum system.
-- `obj::Objective`: The objective function.
-- `integrators::Vector{<:AbstractIntegrator}`: The integrators.
-- `constraints::Vector{<:AbstractConstraint}`: The constraints.
-or
-- `prob::QuantumControlProblem`: The quantum control problem.
+Construct a `DirectTrajOptProblem` for the minimum time problem of reaching a target state.
 
 # Keyword Arguments
 - `state_name::Symbol=:ψ̃`: The symbol for the state variables.
 - `final_fidelity::Union{Real, Nothing}=nothing`: The final fidelity.
 - `D=1.0`: The cost weight on the time.
-- `ipopt_options::IpoptOptions=IpoptOptions()`: The Ipopt options.
 - `piccolo_options::PiccoloOptions=PiccoloOptions()`: The Piccolo options.
-- `kwargs...`: Additional keyword arguments, passed to `QuantumControlProblem`.
-
 """
 function QuantumStateMinimumTimeProblem end
 
 function QuantumStateMinimumTimeProblem(
-    traj::NamedTrajectory,
-    obj::Objective,
-    integrators::Vector{<:AbstractIntegrator},
+    trajectory::NamedTrajectory,
+    ψ_goals::AbstractVector{<:AbstractVector{<:ComplexF64}},
+    objective::Objective,
+    dynamics::TrajectoryDynamics,
     constraints::Vector{<:AbstractConstraint};
     state_name::Symbol=:ψ̃,
-    control_name::Symbol=:a,
-    final_fidelity::Union{Real, Nothing}=nothing,
-    D=1.0,
-    ipopt_options::IpoptOptions=IpoptOptions(),
+    final_fidelity::Float64=1.0,
+    D=100.0,
     piccolo_options::PiccoloOptions=PiccoloOptions(),
-    kwargs...
 )
-    state_names = [name for name in traj.names if startswith(name, state_name)]
+    state_names = [name for name in trajectory.names if startswith(string(name), string(state_name))]
     @assert length(state_names) ≥ 1 "No matching states found in trajectory"
+    @assert length(state_names) == length(ψ_goals) "Number of states and goals must match"
 
-    obj += MinimumTimeObjective(traj; D=D, eval_hessian=piccolo_options.eval_hessian)
-
-    # Default to average state fidelity
-    if isnothing(final_fidelity)
-        vals = [iso_fidelity(traj[n][:, end], traj.goal[n]) for n ∈ state_names]
-        final_fidelity = sum(vals) / length(vals)
+    if piccolo_options.verbose
+        println("    constructing QuantumStateMinimumTimeProblem...")
+        println("\tfinal fidelity: $(final_fidelity)")
     end
 
-    for state_name in state_names
-        fidelity_constraint = FinalQuantumStateFidelityConstraint(
+    objective += MinimumTimeObjective(
+        trajectory, D=D, timesteps_all_equal=piccolo_options.timesteps_all_equal
+    )
+
+    for (state_name, ψ_goal) in zip(state_names, ψ_goals)
+        fidelity_constraint = FinalKetFidelityConstraint(
+            ψ_goal,
             state_name,
             final_fidelity,
-            traj,
-            eval_hessian=piccolo_options.eval_hessian
+            trajectory,
         )
 
         push!(constraints, fidelity_constraint)
     end
 
-    return QuantumControlProblem(
-        traj,
-        obj,
-        integrators;
-        constraints=constraints,
-        ipopt_options=ipopt_options,
-        piccolo_options=piccolo_options,
-        control_name=control_name,
+    return DirectTrajOptProblem(
+        trajectory,
+        objective,
+        dynamics,
+        constraints
+    )
+end
+
+# TODO: goals from trajectory?
+
+function QuantumStateMinimumTimeProblem(
+    prob::DirectTrajOptProblem,
+    ψ_goals::AbstractVector{<:AbstractVector{<:ComplexF64}};
+    objective::Objective=prob.objective,
+    constraints::AbstractVector{<:AbstractConstraint}=prob.constraints,
+    kwargs...
+)
+    return QuantumStateMinimumTimeProblem(
+        prob.trajectory,
+        ψ_goals,
+        objective,
+        prob.dynamics,
+        constraints;
         kwargs...
     )
 end
 
 function QuantumStateMinimumTimeProblem(
-    prob::QuantumControlProblem;
-    obj::Objective=get_objective(prob),
-    constraints::AbstractVector{<:AbstractConstraint}=get_constraints(prob),
-    ipopt_options::IpoptOptions=deepcopy(prob.ipopt_options),
-    piccolo_options::PiccoloOptions=deepcopy(prob.piccolo_options),
-    build_trajectory_constraints=false,
+    prob::DirectTrajOptProblem,
+    ψ_goal::AbstractVector{<:ComplexF64};
     kwargs...
 )
-    piccolo_options.build_trajectory_constraints = build_trajectory_constraints
-
-    return QuantumStateMinimumTimeProblem(
-        copy(prob.trajectory),
-        obj,
-        prob.integrators,
-        constraints;
-        ipopt_options=ipopt_options,
-        piccolo_options=piccolo_options,
-        kwargs...
-    )
+    return QuantumStateMinimumTimeProblem(prob, [ψ_goal]; kwargs...)
 end
 
 # *************************************************************************** #
 
 @testitem "Test quantum state minimum time" begin
-        using NamedTrajectories
-        using PiccoloQuantumObjects
+    using NamedTrajectories
+    using PiccoloQuantumObjects 
 
-        # System
-        T = 50
-        Δt = 0.2
-        sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
-        ψ_init = Vector{ComplexF64}[[1.0, 0.0]]
-        ψ_target = Vector{ComplexF64}[[0.0, 1.0]]
+    T = 51
+    Δt = 0.2
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    ψ_init = Vector{ComplexF64}[[1.0, 0.0]]
+    ψ_target = Vector{ComplexF64}[[0.0, 1.0]]
 
-        prob = QuantumStateSmoothPulseProblem(
-            sys, ψ_init, ψ_target, T, Δt;
-            ipopt_options=IpoptOptions(print_level=1),
-            piccolo_options=PiccoloOptions(
-                verbose=false,
-                integrator=:pade
-            )
-        )
-        initial = sum(get_timesteps(prob.trajectory))
-        mintime_prob = QuantumStateMinimumTimeProblem(prob)
-        solve!(mintime_prob, max_iter=20)
-        final = sum(get_timesteps(mintime_prob.trajectory))
-        @test final < initial
+    prob = QuantumStateSmoothPulseProblem(
+        sys, ψ_init, ψ_target, T, Δt;
+        piccolo_options=PiccoloOptions(verbose=false)
+    )
+    initial = sum(get_timesteps(prob.trajectory))
 
-        # Test with final fidelity
-        QuantumStateMinimumTimeProblem(prob, final_fidelity=0.99)
+    min_prob = QuantumStateMinimumTimeProblem(
+        prob, ψ_target,
+        piccolo_options=PiccoloOptions(verbose=false)
+    )
+    solve!(min_prob, max_iter=50, verbose=false, print_level=1)
+    final = sum(get_timesteps(min_prob.trajectory))
+
+    @test final < initial
 end

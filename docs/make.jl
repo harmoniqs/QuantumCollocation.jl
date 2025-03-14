@@ -16,12 +16,11 @@ open(joinpath(@__DIR__, "src", "index.md"), write = true) do io
     end
 end
 
+# TODO: Callbacks are currently broken
 pages = [
     "Home" => "index.md",
     "Manual" => [
         "Problem Templates" => "generated/man/problem_templates.md",
-        "Rollouts" => "generated/man/rollouts.md",
-        "Callbacks" => "generated/man/ipopt_callbacks.md",
     ],
     "Library" => "lib.md",
 ]

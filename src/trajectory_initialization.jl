@@ -6,17 +6,12 @@ export unitary_linear_interpolation
 export initialize_trajectory
 
 using NamedTrajectories
+using PiccoloQuantumObjects
 
 using Distributions
 using ExponentialAction
 using LinearAlgebra
 using TestItems
-
-using ..Isomorphisms
-using ..QuantumSystems
-using ..Rollouts
-using ..EmbeddedOperators
-using ..DirectSums
 
 
 # ----------------------------------------------------------------------------- #
@@ -267,7 +262,7 @@ function initialize_trajectory(
     n_drives::Int,
     control_bounds::Tuple{Vararg{VectorBound}};
     bound_state=false,
-    free_time=false,
+    free_time=true,
     control_name=:a,
     n_control_derivatives::Int=length(control_bounds) - 1,
     zero_initial_and_final_derivative=false,
@@ -290,7 +285,7 @@ function initialize_trajectory(
         Symbol("d"^i * string(control_name)) for i = 1:n_control_derivatives
     ]
     if verbose
-        println("control_derivative_names: $control_derivative_names")
+        println("\tcontrol derivative names: $control_derivative_names")
     end
 
     control_names = (control_name, control_derivative_names...)
@@ -587,6 +582,7 @@ end
 
 @testitem "Geodesic" begin
     using LinearAlgebra
+    using PiccoloQuantumObjects 
 
     ## Group 1: identity to X (π rotation)
 
@@ -643,6 +639,8 @@ end
 
 @testitem "unitary trajectory initialization" begin
     using NamedTrajectories
+    using PiccoloQuantumObjects 
+
     U_goal = GATES[:X]
     T = 10
     Δt = 0.1

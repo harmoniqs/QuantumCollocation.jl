@@ -10,16 +10,6 @@ Modules = [QuantumCollocation.ProblemTemplates]
 Modules = [QuantumCollocation.Options]
 ```
 
-## Rollouts
-```@autodocs
-Modules = [QuantumCollocation.Rollouts]
-```
-
-## Direct Sums
-```@autodocs
-Modules = [QuantumCollocation.DirectSums]
-```
-
 ## Trajectory Initialization
 ```@autodocs
 Modules = [QuantumCollocation.TrajectoryInitialization]

@@ -3,16 +3,17 @@ export UnitaryMinimumTimeProblem
 
 @doc raw"""
     UnitaryMinimumTimeProblem(
+        goal::AbstractPiccoloOperator,
         trajectory::NamedTrajectory,
-        system::AbstractQuantumSystem,
         objective::Objective,
-        integrators::Vector{<:AbstractIntegrator},
-        constraints::Vector{<:AbstractConstraint};
+        dynamics::TrajectoryDynamics,
+        constraints::AbstractVector{<:AbstractConstraint};
         kwargs...
     )
 
     UnitaryMinimumTimeProblem(
-        prob::QuantumControlProblem;
+        goal::AbstractPiccoloOperator,
+        prob::DirectTrajOptProblem;
         kwargs...
     )
 
@@ -28,109 +29,64 @@ J(\vec{\tilde{U}}, a, \dot{a}, \ddot{a}) + D \sum_t \Delta t_t \\
 \end{aligned}
 ```
 
-# Arguments
-- `trajectory::NamedTrajectory`: The initial trajectory.
-- `system::AbstractQuantumSystem`: The quantum system.
-- `objective::Objective`: The objective function (additional to the minimum-time objective).
-- `integrators::Vector{<:AbstractIntegrator}`: The integrators.
-- `constraints::Vector{<:AbstractConstraint}`: The constraints.
-
 # Keyword Arguments
-- `unitary_name::Symbol=:Ũ⃗`: The symbol for the unitary control.
-- `final_fidelity::Float64=0.99`: The final fidelity.
-- `D=1.0`: The weight for the minimum-time objective.
-- `ipopt_options::IpoptOptions=IpoptOptions()`: The options for the Ipopt solver.
-- `piccolo_options::PiccoloOptions=PiccoloOptions()`: The options for the Piccolo solver.
-- `kwargs...`: Additional keyword arguments to pass to `QuantumControlProblem`.
+- `piccolo_options::PiccoloOptions=PiccoloOptions()`: The Piccolo options.
+- `unitary_name::Symbol=:Ũ⃗`: The name of the unitary for the goal.
+- `final_fidelity::Float64=1.0`: The final fidelity constraint.
+- `D::Float64=1.0`: The scaling factor for the minimum-time objective.
 """
 function UnitaryMinimumTimeProblem end
 
 function UnitaryMinimumTimeProblem(
     trajectory::NamedTrajectory,
-    system::AbstractQuantumSystem,
+    goal::AbstractPiccoloOperator,
     objective::Objective,
-    integrators::Vector{<:AbstractIntegrator},
-    constraints::Vector{<:AbstractConstraint};
+    dynamics::TrajectoryDynamics,
+    constraints::AbstractVector{<:AbstractConstraint};
     unitary_name::Symbol=:Ũ⃗,
-    control_name::Symbol=:a,
-    final_fidelity::Union{Real, Nothing}=nothing,
-    D=1.0,
-    ipopt_options::IpoptOptions=IpoptOptions(),
+    final_fidelity::Float64=1.0,
+    D::Float64=100.0,
     piccolo_options::PiccoloOptions=PiccoloOptions(),
-    phase_name::Symbol=:ϕ,
-    phase_operators::Union{AbstractVector{<:AbstractMatrix}, Nothing}=nothing,
-    subspace=nothing,
-    kwargs...
 )
-    @assert unitary_name ∈ trajectory.names
+    if piccolo_options.verbose
+        println("    constructing UnitaryMinimumTimeProblem...")
+        println("\tfinal fidelity: $(final_fidelity)")
+    end
 
     objective += MinimumTimeObjective(
-        trajectory; D=D, eval_hessian=piccolo_options.eval_hessian
+        trajectory; D=D, timesteps_all_equal=piccolo_options.timesteps_all_equal
     )
 
-    U_T = trajectory[unitary_name][:, end]
-    U_G = trajectory.goal[unitary_name]
-    subspace = isnothing(subspace) ? axes(iso_vec_to_operator(U_T), 1) : subspace
-
-    if isnothing(phase_operators)
-        if isnothing(final_fidelity)
-            final_fidelity = iso_vec_unitary_fidelity(U_T, U_G, subspace=subspace)
-        end
-
-        fidelity_constraint = FinalUnitaryFidelityConstraint(
-            unitary_name, final_fidelity, trajectory;
-            subspace=subspace,
-            eval_hessian=piccolo_options.eval_hessian
-        )
-    else
-        if isnothing(final_fidelity)
-            phases = trajectory.global_data[phase_name]
-            final_fidelity = iso_vec_unitary_free_phase_fidelity(
-                U_T, U_G, phases, phase_operators; subspace=subspace
-            )
-        end
-
-        fidelity_constraint = FinalUnitaryFreePhaseFidelityConstraint(
-            unitary_name, phase_name, phase_operators, final_fidelity, trajectory;
-            subspace=subspace,
-            eval_hessian=piccolo_options.eval_hessian
-        )
-    end
+    fidelity_constraint = FinalUnitaryFidelityConstraint(
+        goal, unitary_name, final_fidelity, trajectory
+    )
 
     constraints = push!(constraints, fidelity_constraint)
 
-    return QuantumControlProblem(
+    return DirectTrajOptProblem(
         trajectory,
         objective,
-        integrators;
-        constraints=constraints,
-        ipopt_options=ipopt_options,
-        piccolo_options=piccolo_options,
-        control_name=control_name,
-        kwargs...
+        dynamics,
+        constraints
     )
 end
 
+# TODO: how to handle apply_piccolo_options?
+# TODO: goal from trajectory?
+
 function UnitaryMinimumTimeProblem(
-    prob::QuantumControlProblem,
-    sys::AbstractQuantumSystem;
-    objective::Objective=get_objective(prob),
-    constraints::AbstractVector{<:AbstractConstraint}=get_constraints(prob),
-    ipopt_options::IpoptOptions=deepcopy(prob.ipopt_options),
-    piccolo_options::PiccoloOptions=deepcopy(prob.piccolo_options),
-    build_trajectory_constraints=false,
+    prob::DirectTrajOptProblem,
+    goal::AbstractPiccoloOperator;
+    objective::Objective=prob.objective,
+    constraints::AbstractVector{<:AbstractConstraint}=prob.constraints,
     kwargs...
 )
-    piccolo_options.build_trajectory_constraints = build_trajectory_constraints
-
     return UnitaryMinimumTimeProblem(
-        copy(prob.trajectory),
-        sys,
+        prob.trajectory,
+        goal,
         objective,
-        prob.integrators,
+        prob.dynamics,
         constraints;
-        ipopt_options=ipopt_options,
-        piccolo_options=piccolo_options,
         kwargs...
     )
 end
@@ -139,6 +95,7 @@ end
 
 @testitem "Minimum time Hadamard gate" begin
     using NamedTrajectories
+    using PiccoloQuantumObjects 
 
     H_drift = PAULIS[:Z]
     H_drives = [PAULIS[:X], PAULIS[:Y]]
@@ -150,62 +107,31 @@ end
 
     prob = UnitarySmoothPulseProblem(
         sys, U_goal, T, Δt,
-        ipopt_options=IpoptOptions(print_level=1),
         piccolo_options=PiccoloOptions(verbose=false)
     )
 
     before = unitary_rollout_fidelity(prob.trajectory, sys)
-    solve!(prob, max_iter=50)
+    solve!(prob; max_iter=100, verbose=false, print_level=1)
     after = unitary_rollout_fidelity(prob.trajectory, sys)
     @test after > before
 
-    # Soft fidelity constraint
-    final_fidelity = minimum([0.99, after])
-    mintime_prob = UnitaryMinimumTimeProblem(prob, sys, final_fidelity=final_fidelity)
-    solve!(mintime_prob; max_iter=100)
+    # soft fidelity constraint
+    min_prob = UnitaryMinimumTimeProblem(
+        prob, U_goal,
+        piccolo_options=PiccoloOptions(verbose=false)
+    )
+    solve!(min_prob; max_iter=100, verbose=false, print_level=1)
 
-    # Test fidelity is approximatley staying above the constraint
-    @test unitary_rollout_fidelity(mintime_prob.trajectory, sys) ≥ (final_fidelity - 0.1 * final_fidelity)
-    duration_after = sum(get_timesteps(mintime_prob.trajectory))
+    # test fidelity has stayed above the constraint
+    constraint_tol = 0.95
+    final_fidelity = minimum([0.99, after])
+    @test unitary_rollout_fidelity(min_prob.trajectory, sys) ≥ constraint_tol * final_fidelity
+    duration_after = sum(get_timesteps(min_prob.trajectory))
     duration_before = sum(get_timesteps(prob.trajectory))
     @test duration_after < duration_before
-
-    # Set up without a final fidelity
-    @test UnitaryMinimumTimeProblem(prob, sys) isa QuantumControlProblem
-
 end
 
-@testitem "Minimum time free phase" begin
-    using NamedTrajectories
-
-    phase_operators = [PAULIS[:Z]]
-    sys = QuantumSystem([PAULIS[:X]])
-    prob = UnitarySmoothPulseProblem(
-        sys, GATES[:H], 51, 0.2,
-        ipopt_options=IpoptOptions(print_level=1),
-        piccolo_options=PiccoloOptions(verbose=false),
-        phase_operators=phase_operators
-    )
-
-    # Soft fidelity constraint
-    final_fidelity = minimum([0.99, unitary_rollout_fidelity(prob.trajectory, sys)])
-    mintime_prob = UnitaryMinimumTimeProblem(
-        prob,
-        sys;
-        final_fidelity=final_fidelity,
-        phase_operators=phase_operators
-    )
-    solve!(mintime_prob; max_iter=100)
-
-    duration_after = sum(get_timesteps(mintime_prob.trajectory))
-    duration_before = sum(get_timesteps(prob.trajectory))
-    @test duration_after < duration_before
-
-    # Quick check for using default fidelity
-    @test UnitaryMinimumTimeProblem(
-        prob,
-        sys;
-        final_fidelity=final_fidelity,
-        phase_operators=phase_operators
-    ) isa QuantumControlProblem
+@testitem "Test relaxed final_fidelity constraint" begin
+    final_fidelity = 0.95
+    @test_broken false
 end
