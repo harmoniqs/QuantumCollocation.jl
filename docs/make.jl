@@ -8,6 +8,9 @@ push!(LOAD_PATH, joinpath(@__DIR__, "..", "src"))
 
 pages = [
     "Home" => "index.md",
+    "Examples" => [
+        "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
+    ],
     "Library" => [
         "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
         "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
