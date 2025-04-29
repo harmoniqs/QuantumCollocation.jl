@@ -77,6 +77,7 @@ function QuantumStateSmoothPulseProblem(
     R_a::Union{Float64, Vector{Float64}}=R,
     R_da::Union{Float64, Vector{Float64}}=R,
     R_dda::Union{Float64, Vector{Float64}}=R,
+    final_loss=KetInfidelityObjective,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
     piccolo_options::PiccoloOptions=PiccoloOptions(),
 )
@@ -128,7 +129,7 @@ function QuantumStateSmoothPulseProblem(
     J += QuadraticRegularizer(control_names[3], traj, R_dda)
 
     for name ∈ state_names
-        J += KetInfidelityObjective(name, traj; Q=Q)
+        J += final_loss(name, traj; Q=Q)
     end
 
     # Optional Piccolo constraints and objectives
@@ -151,7 +152,7 @@ function QuantumStateSmoothPulseProblem(
         )
     end
 
-    integrators = [
+    integrators = AbstractIntegrator[
         state_integrators...,
         DerivativeIntegrator(traj, control_name, control_names[2]),
         DerivativeIntegrator(traj, control_names[2], control_names[3])

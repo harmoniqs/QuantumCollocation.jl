@@ -355,11 +355,10 @@ function initialize_trajectory(
     if free_time
         push!(names, timestep_name)
         push!(values, Δt)
-        controls = (control_names[end], timestep_name)
         bounds = merge(bounds, (; timestep_name => Δt_bounds,))
-    else
-        controls = (control_names[end],)
     end
+
+    controls = (control_names[end],)
 
     # Construct global data for free phases
     global_data = isnothing(phase_data) ? (;) : (; phase_name => phase_data)

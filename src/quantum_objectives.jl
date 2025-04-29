@@ -1,6 +1,7 @@
 module QuantumObjectives
 
 export KetInfidelityObjective
+export KetLogInfidelityObjective
 export UnitaryInfidelityObjective
 export DensityMatrixPureStateInfidelityObjective
 export UnitarySensitivityObjective
@@ -29,6 +30,16 @@ function KetInfidelityObjective(
 )
     ψ_goal = iso_to_ket(traj.goal[ψ̃_name])
     ℓ = ψ̃ -> abs(1 - ket_fidelity_loss(ψ̃, ψ_goal))
+    return TerminalObjective(ℓ, ψ̃_name, traj; Q=Q)
+end
+
+function KetLogInfidelityObjective(
+    ψ̃_name::Symbol,
+    traj::NamedTrajectory;
+    Q=100.0
+)
+    ψ_goal = iso_to_ket(traj.goal[ψ̃_name])
+    ℓ = ψ̃ -> log(abs(1 - ket_fidelity_loss(ψ̃, ψ_goal)))
     return TerminalObjective(ℓ, ψ̃_name, traj; Q=Q)
 end
 
