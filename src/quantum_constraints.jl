@@ -21,7 +21,7 @@ function FinalKetFidelityConstraint(
     traj::NamedTrajectory
 )
     terminal_constraint = ψ̃ -> [
-        abs(QuantumObjectives.ket_fidelity_loss(ψ̃, ψ_goal) - final_fidelity)
+        final_fidelity - QuantumObjectives.ket_fidelity_loss(ψ̃, ψ_goal)
     ]
 
     return NonlinearKnotPointConstraint(
@@ -44,7 +44,7 @@ function FinalUnitaryFidelityConstraint(
     traj::NamedTrajectory
 )
     terminal_constraint = Ũ⃗ -> [
-        abs(QuantumObjectives.unitary_fidelity_loss(Ũ⃗, U_goal) - final_fidelity)
+        final_fidelity - QuantumObjectives.unitary_fidelity_loss(Ũ⃗, U_goal)
     ]
 
     return NonlinearKnotPointConstraint(
