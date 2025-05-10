@@ -18,6 +18,8 @@ using TestItems
 #                           Initial states                                      #
 # ----------------------------------------------------------------------------- #
 
+linear_interpolation(x::AbstractVector, y::AbstractVector, n::Int) = hcat(range(x, y, n)...)
+
 """
     unitary_linear_interpolation(
         U_init::AbstractMatrix,
@@ -48,80 +50,9 @@ function unitary_linear_interpolation(
 end
 
 """
-    unitary_geodesic(
-        operator::EmbeddedOperator,
-        samples::Int;
-        kwargs...
-    )
-
-    unitary_geodesic(
-        U_goal::AbstractMatrix{<:Number},
-        samples::Int;
-        kwargs...
-    )
-
-    unitary_geodesic(
-        U₀::AbstractMatrix{<:Number},
-        U₁::AbstractMatrix{<:Number},
-        samples::Number;
-        kwargs...
-    )
-
-    unitary_geodesic(
-        U₀::AbstractMatrix{<:Number},
-        U₁::AbstractMatrix{<:Number},
-        timesteps::AbstractVector{<:Number};
-        return_generator=false
-    )
-
-Compute a geodesic connecting two unitary operators.
-"""
-function unitary_geodesic end
-
-function unitary_geodesic(
-    U_init::AbstractMatrix{<:Number},
-    U_goal::EmbeddedOperator,
-    samples::Int;
-    kwargs...
-)
-    U1 = unembed(U_init, U_goal)
-    U2 = unembed(U_goal)
-    Ũ⃗ = unitary_geodesic(U1, U2, samples; kwargs...)
-    return hcat([
-        operator_to_iso_vec(embed(iso_vec_to_operator(Ũ⃗ₜ), U_goal))
-        for Ũ⃗ₜ ∈ eachcol(Ũ⃗)
-    ]...)
-end
-
-function unitary_geodesic(
-    U_init::AbstractMatrix{<:Number},
-    U_goal::AbstractMatrix{<:Number},
-    samples::Int;
-    kwargs...
-)
-    return unitary_geodesic(U_init, U_goal, range(0, 1, samples); kwargs...)
-end
-
-function unitary_geodesic(
-    U_goal::AbstractPiccoloOperator,
-    samples::Int;
-    kwargs...
-)
-    if U_goal isa EmbeddedOperator
-        U_goal = U_goal.operator
-    end
-    return unitary_geodesic(
-        Matrix{ComplexF64}(I(size(U_goal, 1))),
-        U_goal,
-        samples;
-        kwargs...
-    )
-end
-
-"""
     unitary_geodesic(U_init, U_goal, times; kwargs...)
 
-Compute the geodesic connecting U_init and U_goal at the specified times. Allows for the possibility of unequal times and ranges outside [0,1].
+Compute the geodesic connecting U_init and U_goal at the specified times.
 
 # Arguments
 - `U_init::AbstractMatrix{<:Number}`: The initial unitary operator.
@@ -129,21 +60,29 @@ Compute the geodesic connecting U_init and U_goal at the specified times. Allows
 - `times::AbstractVector{<:Number}`: The times at which to evaluate the geodesic.
 
 # Keyword Arguments
-- `return_unitary_isos::Bool=true`: If true returns a matrix where each column is a unitary isovec, i.e. vec(vcat(real(U), imag(U))). If false, returns a vector of unitary matrices.
-- `return_generator::Bool=false`: If true, returns the effective Hamiltonian generating the geodesic.
+- `return_unitary_isos::Bool=true`: If true returns a matrix where each column is a unitary 
+    isovec, i.e. vec(vcat(real(U), imag(U))). If false, returns a vector of unitary matrices.
+- `return_generator::Bool=false`: If true, returns the effective Hamiltonian generating 
+    the geodesic.
 """
+function unitary_geodesic end
+
 function unitary_geodesic(
     U_init::AbstractMatrix{<:Number},
     U_goal::AbstractMatrix{<:Number},
     times::AbstractVector{<:Number};
     return_unitary_isos=true,
-    return_generator=false
+    return_generator=false,
+    H_drift::AbstractMatrix{<:Number}=zeros(size(U_init)),
 )
     t₀ = times[1]
     T = times[end] - t₀
-    H = im * log(U_goal * U_init') / T
+
+    U_drift(t) = exp(-im * H_drift * t)
+    H = im * log(U_drift(T)' * (U_goal * U_init')) / T
     # -im prefactor is not included in H
-    U_geo = [exp(-im * H * (t - t₀)) * U_init for t ∈ times]
+    U_geo = [U_drift(t) * exp(-im * H * (t - t₀)) * U_init for t ∈ times]
+
     if !return_unitary_isos
         if return_generator
             return U_geo, H
@@ -160,8 +99,44 @@ function unitary_geodesic(
     end
 end
 
-linear_interpolation(x::AbstractVector, y::AbstractVector, n::Int) =
-    hcat(range(x, y, n)...)
+function unitary_geodesic(
+    U_goal::AbstractPiccoloOperator,
+    samples::Int;
+    kwargs...
+)
+    return unitary_geodesic(
+        I(size(U_goal)),
+        U_goal,
+        samples;
+        kwargs...
+    )
+end
+
+function unitary_geodesic(
+    U_init::AbstractMatrix{<:Number},
+    U_goal::EmbeddedOperator,
+    samples::Int;
+    H_drift::AbstractMatrix{<:Number}=zeros(size(U_init)),
+    kwargs...
+)
+    H_drift = unembed(H_drift, U_goal)
+    U1 = unembed(U_init, U_goal)
+    U2 = unembed(U_goal)
+    Ũ⃗ = unitary_geodesic(U1, U2, samples; H_drift=H_drift, kwargs...)
+    return hcat([
+        operator_to_iso_vec(embed(iso_vec_to_operator(Ũ⃗ₜ), U_goal))
+        for Ũ⃗ₜ ∈ eachcol(Ũ⃗)
+    ]...)
+end
+
+function unitary_geodesic(
+    U_init::AbstractMatrix{<:Number},
+    U_goal::AbstractMatrix{<:Number},
+    samples::Int;
+    kwargs...
+)
+    return unitary_geodesic(U_init, U_goal, range(0, 1, samples); kwargs...)
+end
 
 # ============================================================================= #
 
@@ -172,10 +147,16 @@ function initialize_unitary_trajectory(
     U_init::AbstractMatrix{<:Number},
     U_goal::AbstractPiccoloOperator,
     T::Int;
-    geodesic=true
+    geodesic::Bool=true,
+    system::Union{AbstractQuantumSystem, Nothing}=nothing
 )
     if geodesic
-        Ũ⃗ = unitary_geodesic(U_init, U_goal, T)
+        if system isa AbstractQuantumSystem
+            H_drift = Matrix(get_drift(system))
+        else
+            H_drift = zeros(size(U_init))
+        end
+        Ũ⃗ = unitary_geodesic(U_init, U_goal, T, H_drift=H_drift)
     else
         Ũ⃗ = unitary_linear_interpolation(U_init, U_goal, T)
     end
@@ -270,8 +251,7 @@ function initialize_trajectory(
     Δt_bounds::ScalarBound=(0.5 * Δt, 1.5 * Δt),
     drive_derivative_σ::Float64=0.1,
     a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
-    phase_name::Symbol=:ϕ,
-    phase_data::Union{AbstractVector{<:Real}, Nothing}=nothing,
+    global_data::NamedTuple{gname, <:Tuple{Vararg{AbstractVector{<:Real}}}} where gname=(;),
     verbose=false,
 )
     @assert length(state_data) == length(state_names) == length(state_inits) == length(state_goals) "state_data, state_names, state_inits, and state_goals must have the same length"
@@ -361,9 +341,6 @@ function initialize_trajectory(
         controls = (control_names[end],)
     end
 
-    # Construct global data for free phases
-    global_data = isnothing(phase_data) ? (;) : (; phase_name => phase_data)
-
     return NamedTrajectory(
         (; (names .=> values)...);
         controls=controls,
@@ -392,7 +369,6 @@ function initialize_trajectory(
     system::Union{AbstractQuantumSystem, Nothing}=nothing,
     rollout_integrator::Function=expv,
     geodesic=true,
-    phase_operators::Union{AbstractVector{<:AbstractMatrix}, Nothing}=nothing,
     kwargs...
 )
     # Construct timesteps
@@ -415,15 +391,17 @@ function initialize_trajectory(
 
     # Construct state data
     if isnothing(a_guess)
-        Ũ⃗_traj = initialize_unitary_trajectory(U_init, U_goal, T; geodesic=geodesic)
+        Ũ⃗_traj = initialize_unitary_trajectory(
+            U_init, 
+            U_goal, 
+            T; 
+            geodesic=geodesic, 
+            system=system
+        )
     else
         @assert !isnothing(system) "System must be provided if a_guess is provided."
         Ũ⃗_traj = unitary_rollout(Ũ⃗_init, a_guess, timesteps, system; integrator=rollout_integrator)
     end
-
-    # Construct phase data
-    phase_data = isnothing(phase_operators) ? nothing : π * randn(length(phase_operators))
-
     
     return initialize_trajectory(
         [Ũ⃗_traj],
@@ -433,7 +411,6 @@ function initialize_trajectory(
         T,
         Δt,
         args...;
-        phase_data=phase_data,
         a_guess=a_guess,
         kwargs...
     )
