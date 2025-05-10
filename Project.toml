@@ -1,7 +1,7 @@
 name = "QuantumCollocation"
 uuid = "0dc23a59-5ffb-49af-b6bd-932a8ae77adf"
 authors = ["Aaron Trowbridge <aaron.j.trowbridge@gmail.com> and contributors"]
-version = "0.7.1"
+version = "0.7.2"
 
 [deps]
 DirectTrajOpt = "c823fa1f-8872-4af5-b810-2b9b72bbbf56"
@@ -21,7 +21,7 @@ TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 TrajectoryIndexingUtils = "6dad8b7f-dd9a-4c28-9b70-85b9a079bfc8"
 
 [compat]
-DirectTrajOpt = "0.2"
+DirectTrajOpt = "0.2.3"
 Distributions = "0.25"
 ExponentialAction = "0.2"
 Interpolations = "0.16"
