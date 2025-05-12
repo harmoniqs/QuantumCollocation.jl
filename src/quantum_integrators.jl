@@ -87,7 +87,7 @@ end
 # ----------------------------------------------------------------------------- #
 
 function TimeDependentKetIntegrator(
-    sys::QuantumSystem,
+    sys::TimeDependentQuantumSystem,
     traj::NamedTrajectory, 
     ψ̃::Symbol, 
     a::Symbol ,
@@ -97,7 +97,7 @@ function TimeDependentKetIntegrator(
 end
 
 function TimeDependentUnitaryIntegrator(
-    sys::QuantumSystem,
+    sys::TimeDependentQuantumSystem,
     traj::NamedTrajectory, 
     Ũ⃗::Symbol, 
     a::Symbol,
