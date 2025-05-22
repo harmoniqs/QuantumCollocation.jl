@@ -506,65 +506,6 @@ function initialize_trajectory(
     )
 end
 
-"""
-    initialize_trajectory
-
-Trajectory initialization of density matrices.
-"""
-function initialize_trajectory(
-    ρ_init,
-    ρ_goal,
-    T::Int,
-    Δt::Union{Real, AbstractVecOrMat{<:Real}},
-    args...;
-    state_name::Symbol=:ρ⃗̃,
-    a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
-    system::Union{OpenQuantumSystem, Nothing}=nothing,
-    rollout_integrator::Function=expv,
-    kwargs...
-)
-    # Construct timesteps
-    if Δt isa AbstractMatrix
-        timesteps = vec(Δt)
-    elseif Δt isa Float64
-        timesteps = fill(Δt, T)
-    else
-        timesteps = Δt
-    end
-
-    # Initial state and goal
-    ρ⃗̃_init = density_to_iso_vec(ρ_init)
-    ρ⃗̃_goal = density_to_iso_vec(ρ_goal)
-
-    # Construct state data
-    if isnothing(a_guess)
-        ρ⃗̃_traj = linear_interpolation(ρ_init, ρ_goal, T)
-    else
-        @assert !isnothing(system) "System must be provided if a_guess is provided."
-
-        ρ⃗̃_traj = open_rollout(
-            ρ_init,
-            a_guess,
-            timesteps,
-            system;
-            integrator=rollout_integrator
-        )
-    end
-
-    return initialize_trajectory(
-        [ρ⃗̃_traj],
-        [ρ⃗̃_init],
-        [ρ⃗̃_goal],
-        [state_name],
-        T,
-        Δt,
-        args...;
-        a_guess=a_guess,
-        kwargs...
-    )
-end
-
-
 
 # ============================================================================= #
 

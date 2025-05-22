@@ -8,6 +8,5 @@ const ⊗ = kron
 
 include("transmons.jl")
 include("rydberg.jl")
-include("cats.jl")
 
 end

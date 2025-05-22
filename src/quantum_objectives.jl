@@ -68,29 +68,6 @@ function UnitaryInfidelityObjective(
 end
 
 # ---------------------------------------------------------
-#                        Density Matrices
-# ---------------------------------------------------------
-
-function density_matrix_pure_state_infidelity_loss(
-    ρ̃::AbstractVector, 
-    ψ::AbstractVector{<:Complex{Float64}}
-)
-    ρ = iso_vec_to_density(ρ̃)
-    ℱ = real(ψ' * ρ * ψ)
-    return abs(1 - ℱ)
-end
-
-function DensityMatrixPureStateInfidelityObjective(
-    ρ̃_name::Symbol,
-    ψ_goal::AbstractVector{<:Complex{Float64}},
-    traj::NamedTrajectory;
-    Q=100.0
-)
-    ℓ = ρ̃ -> density_matrix_pure_state_infidelity_loss(ρ̃, ψ_goal)
-    return TerminalObjective(ℓ, ρ̃_name, traj; Q=Q)
-end
-
-# ---------------------------------------------------------
 #                        Sensitivity
 # ---------------------------------------------------------
 
