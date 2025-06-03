@@ -187,6 +187,7 @@ end
 @testitem "Sensitive and robust" begin
     using LinearAlgebra
     using PiccoloQuantumObjects
+    using QuantumCollocation
 
     system = QuantumSystem([PAULIS.X, PAULIS.Y])
     varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [PAULIS.X] )
@@ -198,7 +199,7 @@ end
         varsys, GATES.X, T, Δt, 
         variational_scales=[sense_scale], 
         sensitive_times=[[T]],
-        piccolo_options=PiccoloOptions(verbose=false)
+        piccolo_options=QuantumCollocation.Options.PiccoloOptions(verbose=false)
     )
     solve!(sense_prob, max_iter=20, print_level=1, verbose=false)
 

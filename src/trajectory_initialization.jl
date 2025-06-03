@@ -163,6 +163,9 @@ end
 linear_interpolation(x::AbstractVector, y::AbstractVector, n::Int) =
     hcat(range(x, y, n)...)
 
+linear_interpolation(X::AbstractMatrix, Y::AbstractMatrix, n::Int) =
+    hcat([X + (Y - X) * t for t in range(0, 1, length=n)]...)
+
 # ============================================================================= #
 
 const VectorBound = Union{AbstractVector{R}, Tuple{AbstractVector{R}, AbstractVector{R}}} where R <: Real
@@ -270,6 +273,7 @@ function initialize_trajectory(
     Δt_bounds::ScalarBound=(0.5 * Δt, 1.5 * Δt),
     drive_derivative_σ::Float64=0.1,
     a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
+    system::Union{OpenQuantumSystem, Nothing}=nothing,
     phase_name::Symbol=:ϕ,
     phase_data::Union{AbstractVector{<:Real}, Nothing}=nothing,
     verbose=false,
@@ -345,6 +349,7 @@ function initialize_trajectory(
             drive_derivative_σ
         )
     else
+        @assert !isnothing(system) "System must be provided if a_guess is provided."
         # Use provided controls and take derivatives
         a_values = initialize_control_trajectory(a_guess, Δt, n_control_derivatives)
     end
@@ -673,6 +678,107 @@ end
     )
 
     @test traj isa NamedTrajectory
+end
+
+@testitem "unitary_linear_interpolation direct" begin
+    using PiccoloQuantumObjects
+    U_init = GATES[:I]
+    U_goal = GATES[:X]
+    samples = 5
+    # Direct matrix
+    Ũ⃗ = TrajectoryInitialization.unitary_linear_interpolation(U_init, U_goal, samples)
+    @test size(Ũ⃗, 2) == samples
+    # EmbeddedOperator
+    U_init_emb = EmbeddedOperator(U_init, [1,2], [2,2])
+    U_goal_emb = EmbeddedOperator(U_goal, [1,2], [2,2])
+    Ũ⃗2 = TrajectoryInitialization.unitary_linear_interpolation(U_init_emb.operator, U_goal_emb, samples)
+    @test size(Ũ⃗2, 2) == samples
+end
+
+@testitem "initialize_unitary_trajectory geodesic=false" begin
+    using PiccoloQuantumObjects
+    U_init = GATES[:I]
+    U_goal = GATES[:X]
+    T = 4
+    Ũ⃗ = TrajectoryInitialization.initialize_unitary_trajectory(U_init, U_goal, T; geodesic=false)
+    @test size(Ũ⃗, 2) == T
+end
+
+@testitem "initialize_control_trajectory with a, Δt, n_derivatives" begin
+    n_drives = 2
+    T = 5
+    n_derivatives = 2
+    a = randn(n_drives, T)
+    Δt = fill(0.1, T)
+    controls = TrajectoryInitialization.initialize_control_trajectory(a, Δt, n_derivatives)
+    @test length(controls) == n_derivatives + 1
+    @test size(controls[1]) == (n_drives, T)
+    # Real Δt version
+    controls2 = TrajectoryInitialization.initialize_control_trajectory(a, 0.1, n_derivatives)
+    @test length(controls2) == n_derivatives + 1
+end
+
+@testitem "initialize_trajectory with bound_state and zero_initial_and_final_derivative" begin
+    using NamedTrajectories: NamedTrajectory
+    state_data = [rand(2, 4)]
+    state_inits = [rand(2)]
+    state_goals = [rand(2)]
+    state_names = [:x]
+    T = 4
+    Δt = 0.1
+    n_drives = 1
+    control_bounds = ([1.0], [1.0])
+    traj = TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, state_names, T, Δt, n_drives, control_bounds;
+        bound_state=true, zero_initial_and_final_derivative=true
+    )
+    @test traj isa NamedTrajectory
+end
+
+@testitem "initialize_trajectory with free_time=false" begin
+    using NamedTrajectories: NamedTrajectory
+    state_data = [rand(2, 4)]
+    state_inits = [rand(2)]
+    state_goals = [rand(2)]
+    state_names = [:x]
+    T = 4
+    Δt = 0.1
+    n_drives = 1
+    control_bounds = ([1.0], [1.0])
+    traj = TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, state_names, T, Δt, n_drives, control_bounds;
+        free_time=false
+    )
+    @test traj isa NamedTrajectory
+end
+
+@testitem "initialize_trajectory error branches" begin
+    state_data = [rand(2, 4)]
+    state_inits = [rand(2)]
+    state_goals = [rand(2)]
+    state_names = [:x]
+    T = 4
+    Δt = 0.1
+    n_drives = 1
+    control_bounds = ([1.0], [1.0])
+    # state_names not unique
+    @test_throws AssertionError TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, [:x, :x], T, Δt, n_drives, control_bounds
+    )
+    # control_bounds wrong length
+    @test_throws AssertionError TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, state_names, T, Δt, n_drives, ([1.0],); n_control_derivatives=1
+    )
+    # bounds wrong type
+    @test_throws MethodError TrajectoryInitialization.initialize_control_trajectory(
+        n_drives, 2, T, "notabounds", 0.1
+    )
+    # a_guess provided but system missing
+    a_guess = randn(n_drives, T)
+    @test_throws AssertionError TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, state_names, T, Δt, n_drives, control_bounds;
+        a_guess=a_guess
+    )
 end
 
 

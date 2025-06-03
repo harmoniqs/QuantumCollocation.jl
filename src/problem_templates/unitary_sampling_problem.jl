@@ -164,7 +164,8 @@ end
 # *************************************************************************** #
 
 @testitem "Sample robustness test" begin
-    using PiccoloQuantumObjects 
+    using PiccoloQuantumObjects
+    using QuantumCollocation
 
     T = 50
     Δt = 0.2
@@ -175,7 +176,7 @@ end
     samples = [0.0, 0.1]
     prob = UnitarySamplingProblem(
         [systems(x) for x in samples], operator, T, Δt,
-        piccolo_options=PiccoloOptions(verbose=false)
+        piccolo_options=QuantumCollocation.Options.PiccoloOptions(verbose=false)
     )
     solve!(prob, max_iter=100, print_level=1, verbose=false)
     

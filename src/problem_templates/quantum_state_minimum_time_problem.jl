@@ -90,6 +90,7 @@ end
 @testitem "Test quantum state minimum time" begin
     using NamedTrajectories
     using PiccoloQuantumObjects 
+    using QuantumCollocation
 
     T = 51
     Δt = 0.2
@@ -99,7 +100,7 @@ end
 
     prob = QuantumStateSmoothPulseProblem(
         sys, ψ_init, ψ_target, T, Δt;
-        piccolo_options=PiccoloOptions(verbose=false)
+        piccolo_options=QuantumCollocation.Options.PiccoloOptions(verbose=false)
     )
     initial = sum(get_timesteps(prob.trajectory))
 

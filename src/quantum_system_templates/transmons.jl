@@ -1,6 +1,7 @@
 export TransmonSystem
 export TransmonDipoleCoupling
 export MultiTransmonSystem
+using QuantumCollocation
 
 @doc raw"""
     TransmonSystem(;
@@ -134,6 +135,26 @@ where `a_i` is the annihilation operator for the `i`th transmon.
 """
 function TransmonDipoleCoupling end
 
+function lift(op::AbstractMatrix, which::Int, dims::Vector{Int})
+    ops = [i == which ? op : Matrix{eltype(op)}(I, d, d) for (i, d) in enumerate(dims)]
+    result = ops[1]
+    for i in 2:length(ops)
+        result = kron(result, ops[i])
+    end
+    return result
+end
+
+struct QuantumSystemCoupling
+    op
+    g_ij
+    pair
+    subsystem_levels
+    coupling_type
+    params
+end
+
+export QuantumSystemCoupling
+
 function TransmonDipoleCoupling(
     g_ij::Float64,
     pair::Tuple{Int, Int},
@@ -227,16 +248,115 @@ function MultiTransmonSystem(
 
     couplings = QuantumSystemCoupling[]
 
-    for i = 1:n_subsystems-1
-        for j = i+1:n_subsystems
-            if i ∈ subsystems &&  j ∈ subsystems
-                push!(
-                    couplings,
-                    TransmonDipoleCoupling(gs[i, j], (i, j), systems; lab_frame=lab_frame)
-                )
-            end
+    for local_i = 1:length(systems)-1
+        for local_j = local_i+1:length(systems)
+            global_i = subsystems[local_i]
+            global_j = subsystems[local_j]
+            push!(
+                couplings,
+                TransmonDipoleCoupling(gs[global_i, global_j], (local_i, local_j), [sys.levels for sys in systems]; lab_frame=lab_frame)
+            )
         end
     end
 
-    return CompositeQuantumSystem(systems, couplings)
+    levels = prod([sys.levels for sys in systems])
+    H_drift = sum(c -> c.op, couplings; init=zeros(ComplexF64, levels, levels))
+    return CompositeQuantumSystem(H_drift, systems)
+end
+
+
+@testitem "TransmonSystem: default and custom parameters" begin
+    using PiccoloQuantumObjects
+    using QuantumCollocation
+    sys = TransmonSystem()
+    @test typeof(sys) == QuantumSystem
+    @test haskey(sys.params, :ω)
+    @test haskey(sys.params, :δ)
+    @test sys.params[:levels] == 3
+
+    sys2 = TransmonSystem(ω=5.0, δ=0.3, levels=4, lab_frame=true, frame_ω=0.0, lab_frame_type=:duffing, drives=false)
+    @test sys2.params[:ω] == 5.0
+    @test sys2.params[:δ] == 0.3
+    @test sys2.params[:levels] == 4
+    @test sys2.params[:lab_frame] == true
+    @test sys2.params[:drives] == false
+end
+
+@testitem "TransmonSystem: lab_frame_type variations" begin
+    using PiccoloQuantumObjects
+    using QuantumCollocation
+    sys_duffing = TransmonSystem(lab_frame=true, lab_frame_type=:duffing)
+    sys_quartic = TransmonSystem(lab_frame=true, lab_frame_type=:quartic)
+    sys_cosine = TransmonSystem(lab_frame=true, lab_frame_type=:cosine)
+    @test typeof(sys_duffing) == QuantumSystem
+    @test typeof(sys_quartic) == QuantumSystem
+    @test typeof(sys_cosine) == QuantumSystem
+end
+
+@testitem "TransmonSystem: error on invalid lab_frame_type" begin
+    using PiccoloQuantumObjects
+    using QuantumCollocation
+    @test_throws AssertionError TransmonSystem(lab_frame=true, lab_frame_type=:invalid)
+end
+
+@testitem "TransmonDipoleCoupling: both constructors and frames" begin
+    using PiccoloQuantumObjects
+    using QuantumCollocation
+    levels = [3, 3]
+    g = 0.01
+  
+    c1 = TransmonDipoleCoupling(g, (1,2), levels, lab_frame=false)
+    c2 = TransmonDipoleCoupling(g, (1,2), levels, lab_frame=true)
+    @test typeof(c1) == QuantumCollocation.QuantumSystemCoupling
+    @test typeof(c2) == QuantumCollocation.QuantumSystemCoupling
+
+    sys1 = TransmonSystem(levels=3)
+    sys2 = TransmonSystem(levels=3)
+    c3 = TransmonDipoleCoupling(g, (1,2), [sys1, sys2], lab_frame=false)
+    @test typeof(c3) == QuantumCollocation.QuantumSystemCoupling
+end
+
+@testitem "MultiTransmonSystem: minimal and custom" begin
+    using PiccoloQuantumObjects
+    using QuantumCollocation
+    using LinearAlgebra: norm
+    
+    ωs = [4.0, 4.1]
+    δs = [0.2, 0.21]
+    gs = [0.0 0.01; 0.01 0.0]
+
+    comp = MultiTransmonSystem(ωs, δs, gs)
+    @test typeof(comp) == PiccoloQuantumObjects.CompositeQuantumSystem
+    @test length(comp.subsystems) == 2
+    @test !iszero(comp.H(zeros(comp.n_drives)))
+
+    comp2 = MultiTransmonSystem(
+        ωs, δs, gs;
+        levels_per_transmon=4,
+        subsystem_levels=[4,4],
+        subsystems=[1],
+        subsystem_drive_indices=[1]
+    )
+    @test typeof(comp2) == PiccoloQuantumObjects.CompositeQuantumSystem
+    @test length(comp2.subsystems) == 1
+    @test !isapprox(norm(comp2.H(zeros(comp2.n_drives))), 0.0; atol=1e-12)
+end
+
+@testitem "MultiTransmonSystem: edge cases" begin
+    using PiccoloQuantumObjects
+    using QuantumCollocation
+    ωs = [4.0, 4.1, 4.2]
+    δs = [0.2, 0.21, 0.22]
+    gs = [0.0 0.01 0.02; 0.01 0.0 0.03; 0.02 0.03 0.0]
+    # Only a subset of subsystems
+    comp = MultiTransmonSystem(
+        ωs, δs, gs;
+        subsystems=[1,3],
+        subsystem_drive_indices=[3]
+    )
+    @test typeof(comp) == PiccoloQuantumObjects.CompositeQuantumSystem
+    @test length(comp.subsystems) == 2
+    # Only one drive
+    @test comp.subsystems[1].params[:drives] == false
+    @test comp.subsystems[2].params[:drives] == true
 end

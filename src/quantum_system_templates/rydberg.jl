@@ -121,6 +121,7 @@ end
 
 @testitem "Rydberg system test" begin
     using PiccoloQuantumObjects
+    using QuantumCollocation
 
-    @test RydbergChainSystem(N=3,cutoff_order=2,all2all=false) isa QuantumSystem
+    @test QuantumCollocation.RydbergChainSystem(N=3,cutoff_order=2,all2all=false) isa QuantumSystem
 end
