@@ -20,6 +20,7 @@ include("unitary_smooth_pulse_problem.jl")
 include("unitary_variational_problem.jl")
 include("unitary_minimum_time_problem.jl")
 include("unitary_sampling_problem.jl")
+include("unitary_free_phase_problem.jl")
 
 include("quantum_state_smooth_pulse_problem.jl")
 include("quantum_state_minimum_time_problem.jl")
@@ -57,10 +58,10 @@ function apply_piccolo_options!(
     end
 
     if free_time
-        if piccolo_options.verbose
-            println("\tapplying timesteps_all_equal constraint: $(traj.timestep)")
-        end
         if piccolo_options.timesteps_all_equal
+            if piccolo_options.verbose
+                println("\tapplying timesteps_all_equal constraint: $(traj.timestep)")
+            end
             push!(
                 constraints,
                 TimeStepsAllEqualConstraint(traj)

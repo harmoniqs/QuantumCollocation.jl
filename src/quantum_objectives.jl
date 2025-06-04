@@ -4,6 +4,7 @@ export KetInfidelityObjective
 export UnitaryInfidelityObjective
 export DensityMatrixPureStateInfidelityObjective
 export UnitarySensitivityObjective
+export UnitaryFreePhaseInfidelityObjective
 
 using LinearAlgebra
 using NamedTrajectories
@@ -39,7 +40,7 @@ end
 
 function unitary_fidelity_loss(
     Ũ⃗::AbstractVector{<:Real},
-    U_goal::AbstractMatrix{<:Complex{Float64}}
+    U_goal::AbstractMatrix{<:Complex{<:Real}}
 )
     U = iso_vec_to_operator(Ũ⃗)
     n = size(U, 1)
@@ -65,6 +66,31 @@ function UnitaryInfidelityObjective(
 )
     ℓ = Ũ⃗ -> abs(1 - unitary_fidelity_loss(Ũ⃗, U_goal))
     return TerminalObjective(ℓ, Ũ⃗_name, traj; Q=Q)
+end
+
+function UnitaryFreePhaseInfidelityObjective(
+    U_goal::Function,
+    Ũ⃗_name::Symbol,
+    θ_names::AbstractVector{Symbol},
+    traj::NamedTrajectory;
+    Q=100.0
+)
+    d = sum(traj.global_dims[n] for n in θ_names)
+    function ℓ(z)
+        Ũ⃗, θ = z[1:end-d], z[end-d+1:end]
+        return abs(1 - QuantumObjectives.unitary_fidelity_loss(Ũ⃗, U_goal(θ)))
+    end
+    return TerminalObjective(ℓ, Ũ⃗_name, θ_names, traj; Q=Q)
+end
+
+function UnitaryFreePhaseInfidelityObjective(
+    U_goal::Function,
+    Ũ⃗_name::Symbol,
+    θ_name::Symbol,
+    traj::NamedTrajectory;
+    kwargs...
+)
+    return UnitaryFreePhaseInfidelityObjective(U_goal, Ũ⃗_name, [θ_name], traj; kwargs...)
 end
 
 # ---------------------------------------------------------

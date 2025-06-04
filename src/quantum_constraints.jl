@@ -56,4 +56,30 @@ function FinalUnitaryFidelityConstraint(
     )
 end
 
+function FinalUnitaryFidelityConstraint(
+    U_goal::Function,
+    Ũ⃗_name::Symbol,
+    θ_names::AbstractVector{Symbol},
+    final_fidelity::Float64,
+    traj::NamedTrajectory
+)
+    d = sum(traj.global_dims[n] for n in θ_names)
+    function terminal_constraint(z)
+        Ũ⃗, θ = z[1:end-d], z[end-d+1:end]
+        return [
+            # final_fidelity - QuantumObjectives.unitary_fidelity_loss(Ũ⃗, U_goal(θ))
+            log(final_fidelity / QuantumObjectives.unitary_fidelity_loss(Ũ⃗, U_goal(θ)))
+        ]
+    end
+
+    return NonlinearGlobalKnotPointConstraint(
+        terminal_constraint,
+        Ũ⃗_name,
+        θ_names,
+        traj,
+        equality=false,
+        times=[traj.T]
+    )
+end
+
 end
