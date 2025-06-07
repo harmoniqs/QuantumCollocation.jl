@@ -9,6 +9,12 @@ using LinearAlgebra
 using NamedTrajectories
 using PiccoloQuantumObjects
 using DirectTrajOpt
+using QuantumCollocation
+using TestItems
+
+# using PiccoloQuantumObjects.EmbeddedOperators: get_leakage_indices
+# using LinearAlgebra: norm
+# using DirectTrajOpt: KnotPointObjective
 
 # --------------------------------------------------------- 
 #                        Kets
@@ -68,6 +74,38 @@ function UnitaryInfidelityObjective(
 end
 
 # ---------------------------------------------------------
+#                Leakage Suppression Objective
+# ---------------------------------------------------------
+
+"""
+    LeakageSuppressionObjective(system; norm_type=:fro, kwargs...)
+
+Construct a `KnotPointObjective` that penalizes leakage outside the computational subspace.
+
+- `system`: The quantum system (must support `get_leakage_indices`).
+- `norm_type`: The matrix norm to use (default: `:fro` for Frobenius norm).
+- `kwargs...`: Passed to `KnotPointObjective`.
+
+The objective is: 
+    sum_{(i,j) ∈ I_leakage} norm(U[i, j], norm_type)
+where `I_leakage` is given by `get_leakage_indices(system)`.
+"""
+function LeakageSuppressionObjective(system, name::Symbol, traj; norm_type=:fro, kwargs...)
+    leakage_inds = get_leakage_indices(system)
+    return KnotPointObjective(
+        (U, args...) -> begin
+            n = Int(sqrt(length(U)))
+            @assert n^2 == length(U) "Input vector length is not a perfect square"
+            Umat = reshape(U, n, n)
+            sum(abs(Umat[i, j]) for (i, j) in leakage_inds)
+        end,
+        name,
+        traj;
+        kwargs...
+    )
+end
+
+# ---------------------------------------------------------
 #                        Density Matrices
 # ---------------------------------------------------------
 
@@ -120,5 +158,26 @@ function UnitarySensitivityObjective(
     )
 end
 
+@testitem "LeakageSuppressionObjective basic functionality" begin
+    using PiccoloQuantumObjects
+    using LinearAlgebra: norm
+    using NamedTrajectories
+
+    # Dummy system with leakage indices
+    struct DummySystem end
+    PiccoloQuantumObjects.EmbeddedOperators.get_leakage_indices(::DummySystem) = [(1,2), (2,3)]
+    
+    # U with zeros everywhere (no leakage)
+    U = zeros(3,3)
+    traj = NamedTrajectory((; u = reshape(U, 9, 1)); controls=:u, timestep=1.0)
+    obj = QuantumObjectives.LeakageSuppressionObjective(DummySystem(), :u, traj)
+    @test obj.L(traj.datavec) == 0.0
+
+    # U with leakage at (1,2) and (2,3)
+    U[1,2] = 2.0
+    U[2,3] = 3.0
+    traj = NamedTrajectory((; u = reshape(U, 9, 1)); controls=:u, timestep=1.0)
+    @test obj.L(traj.datavec) ≈ 2.0 + 3.0
+end
 
 end

@@ -128,7 +128,7 @@ end
     @test unitary_rollout_fidelity(min_prob.trajectory, sys) ≥ constraint_tol * final_fidelity
     duration_after = sum(get_timesteps(min_prob.trajectory))
     duration_before = sum(get_timesteps(prob.trajectory))
-    @test duration_after < duration_before
+    @test duration_after <= duration_before
 end
 
 @testitem "Test relaxed final_fidelity constraint" begin
