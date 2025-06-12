@@ -164,7 +164,7 @@ end
 # *************************************************************************** #
 
 @testitem "Sample robustness test" begin
-    using PiccoloQuantumObjects 
+    using PiccoloQuantumObjects
 
     T = 50
     Δt = 0.2

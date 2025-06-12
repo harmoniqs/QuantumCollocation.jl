@@ -1,6 +1,5 @@
 export QuantumStateSmoothPulseProblem
 
-
 """
     QuantumStateSmoothPulseProblem(system, ψ_inits, ψ_goals, T, Δt; kwargs...)
     QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, T, Δt; kwargs...)

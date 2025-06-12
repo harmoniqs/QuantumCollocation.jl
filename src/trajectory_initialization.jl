@@ -163,6 +163,9 @@ end
 linear_interpolation(x::AbstractVector, y::AbstractVector, n::Int) =
     hcat(range(x, y, n)...)
 
+linear_interpolation(X::AbstractMatrix, Y::AbstractMatrix, n::Int) =
+    hcat([X + (Y - X) * t for t in range(0, 1, length=n)]...)
+
 # ============================================================================= #
 
 const VectorBound = Union{AbstractVector{R}, Tuple{AbstractVector{R}, AbstractVector{R}}} where R <: Real
@@ -673,6 +676,112 @@ end
     )
 
     @test traj isa NamedTrajectory
+end
+
+@testitem "unitary_linear_interpolation direct" begin
+    using PiccoloQuantumObjects
+    U_init = GATES[:I]
+    U_goal = GATES[:X]
+    samples = 5
+    # Direct matrix
+    Ũ⃗ = TrajectoryInitialization.unitary_linear_interpolation(U_init, U_goal, samples)
+    @test size(Ũ⃗, 2) == samples
+    # EmbeddedOperator
+    U_init_emb = EmbeddedOperator(U_init, [1,2], [2,2])
+    U_goal_emb = EmbeddedOperator(U_goal, [1,2], [2,2])
+    Ũ⃗2 = TrajectoryInitialization.unitary_linear_interpolation(U_init_emb.operator, U_goal_emb, samples)
+    @test size(Ũ⃗2, 2) == samples
+end
+
+@testitem "initialize_unitary_trajectory geodesic=false" begin
+    using PiccoloQuantumObjects
+    U_init = GATES[:I]
+    U_goal = GATES[:X]
+    T = 4
+    Ũ⃗ = TrajectoryInitialization.initialize_unitary_trajectory(U_init, U_goal, T; geodesic=false)
+    @test size(Ũ⃗, 2) == T
+end
+
+@testitem "initialize_control_trajectory with a, Δt, n_derivatives" begin
+    n_drives = 2
+    T = 5
+    n_derivatives = 2
+    a = randn(n_drives, T)
+    Δt = fill(0.1, T)
+    controls = TrajectoryInitialization.initialize_control_trajectory(a, Δt, n_derivatives)
+    @test length(controls) == n_derivatives + 1
+    @test size(controls[1]) == (n_drives, T)
+    # Real Δt version
+    controls2 = TrajectoryInitialization.initialize_control_trajectory(a, 0.1, n_derivatives)
+    @test length(controls2) == n_derivatives + 1
+end
+
+@testitem "initialize_trajectory with bound_state and zero_initial_and_final_derivative" begin
+    using NamedTrajectories: NamedTrajectory
+    state_data = [rand(2, 4)]
+    state_inits = [rand(2)]
+    state_goals = [rand(2)]
+    state_names = [:x]
+    T = 4
+    Δt = 0.1
+    n_drives = 1
+    control_bounds = ([1.0], [1.0])
+    traj = TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, state_names, T, Δt, n_drives, control_bounds;
+        bound_state=true, zero_initial_and_final_derivative=true
+    )
+    @test traj isa NamedTrajectory
+end
+
+@testitem "initialize_trajectory with free_time=false" begin
+    using NamedTrajectories: NamedTrajectory
+    state_data = [rand(2, 4)]
+    state_inits = [rand(2)]
+    state_goals = [rand(2)]
+    state_names = [:x]
+    T = 4
+    Δt = 0.1
+    n_drives = 1
+    control_bounds = ([1.0], [1.0])
+    traj = TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, state_names, T, Δt, n_drives, control_bounds;
+        free_time=false
+    )
+    @test traj isa NamedTrajectory
+end
+
+@testitem "initialize_trajectory error branches" begin
+    state_data = [rand(2, 4)]
+    state_inits = [rand(2)]
+    state_goals = [rand(2)]
+    state_names = [:x]
+    T = 4
+    Δt = 0.1
+    n_drives = 1
+    control_bounds = ([1.0], [1.0])
+    # state_names not unique
+    @test_throws AssertionError TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, [:x, :x], T, Δt, n_drives, control_bounds
+    )
+    # control_bounds wrong length
+    @test_throws AssertionError TrajectoryInitialization.initialize_trajectory(
+        state_data, state_inits, state_goals, state_names, T, Δt, n_drives, ([1.0],); n_control_derivatives=1
+    )
+    # bounds wrong type
+    @test_throws MethodError TrajectoryInitialization.initialize_control_trajectory(
+        n_drives, 2, T, "notabounds", 0.1
+    )
+end
+
+@testitem "linear_interpolation for matrices" begin
+    X = [1.0 2.0; 3.0 4.0]
+    Y = [5.0 6.0; 7.0 8.0]
+    n = 3
+    result = linear_interpolation(X, Y, n)
+    @test size(result) == (2, 2 * n)
+    @test result[:, 1:2] ≈ X
+    @test result[:, 5:6] ≈ Y
+    @test result[:, 3:4] ≈ (X + Y) / 2
 end
 
 
