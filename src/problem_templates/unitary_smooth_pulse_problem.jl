@@ -73,6 +73,7 @@ function UnitarySmoothPulseProblem(
     unitary_integrator=UnitaryIntegrator,
     state_name::Symbol = :Ũ⃗,
     control_name::Symbol = :a,
+    time_name::Symbol = :t,
     timestep_name::Symbol = :Δt,
     init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
     a_guess::Union{Matrix{Float64}, Nothing}=nothing,
@@ -121,6 +122,11 @@ function UnitarySmoothPulseProblem(
         )
     end
 
+    if typeof(system) == TimeDependentQuantumSystem
+        add_component!(traj, time_name, get_times(traj))
+        update_bound!(traj, time_name, (0.0, Δt_max*T))
+    end
+
     # Objective
     J = UnitaryInfidelityObjective(goal, state_name, traj; Q=Q)
 
@@ -138,12 +144,23 @@ function UnitarySmoothPulseProblem(
         J, constraints, piccolo_options, traj, state_name, timestep_name;
         state_leakage_indices=goal isa EmbeddedOperator ? get_leakage_indices(goal) : nothing
     )
-
+    
     integrators = [
-        unitary_integrator(system, traj, state_name, control_name),
         DerivativeIntegrator(traj, control_name, control_names[2]),
         DerivativeIntegrator(traj, control_names[2], control_names[3]),
     ]
+    if typeof(system) == TimeDependentQuantumSystem
+        integrators = [
+            TimeDependentUnitaryIntegrator(system, traj, state_name, control_name, time_name),
+            integrators...,
+            TimeIntegrator(traj, time_name)
+        ]
+    else
+        integrators = [
+            unitary_integrator(system, traj, state_name, control_name),
+            integrators...
+        ]
+    end
 
     return DirectTrajOptProblem(
         traj,
