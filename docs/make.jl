@@ -1,4 +1,5 @@
 using QuantumCollocation
+using PiccoloQuantumObjects
 using Documenter
 using Literate
 
@@ -8,14 +9,22 @@ push!(LOAD_PATH, joinpath(@__DIR__, "..", "src"))
 
 pages = [
     "Home" => "index.md",
-    "Examples" => [
-        "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
-        "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
+    "Quantum Systems" => [
+        "Quantum Systems" => "generated/tmp/pqo/quantum_systems.md",
     ],
-    "Library" => [
-        "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
-        "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
+    "Quantum System Operations" => [
+        "Isomorphisms" => "generated/tmp/pqo/isomorphisms.md",
+        "Rollout" => "generated/tmp/pqo/rollouts.md",
     ],
+    
+    # "Examples" => [
+    #     "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
+    #     "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
+    # ],
+    # "Library" => [
+    #     "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
+    #     "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
+    # ],
 ]
 
 format = Documenter.HTML(;
@@ -52,11 +61,13 @@ for (root, _, files) ∈ walkdir(lit), file ∈ files
 end
 
 makedocs(;
-    modules=[QuantumCollocation],
+    # modules=[QuantumCollocation],
+    modules=[QuantumCollocation, PiccoloQuantumObjects],
     authors="Aaron Trowbridge <aaron.j.trowbridge@gmail.com> and contributors",
     sitename="QuantumCollocation.jl",
     format=format,
     pages=pages,
+    pagesonly=true,
     warnonly=true,
 )
 
