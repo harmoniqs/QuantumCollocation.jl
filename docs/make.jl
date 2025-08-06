@@ -1,60 +1,5 @@
-# format = Documenter.HTML(;
-#     prettyurls=get(ENV, "CI", "false") == "true",
-#     # canonical="https://docs.harmoniqs.co/QuantumCollocation.jl",
-#     edit_link="main",
-#     assets=String[],
-#     mathengine = MathJax3(Dict(
-#         :loader => Dict("load" => ["[tex]/physics"]),
-#         :tex => Dict(
-#             "inlineMath" => [["\$","\$"], ["\\(","\\)"]],
-#             "tags" => "ams",
-#             "packages" => [
-#                 "base",
-#                 "ams",
-#                 "autoload",
-#                 "physics"
-#             ],
-#         ),
-#     )),
-#     # size_threshold=4_000_000,
-# )
-
-# src = joinpath(@__DIR__, "src")
-# lit = joinpath(@__DIR__, "literate")
-
-# lit_output = joinpath(src, "generated")
-
-# for (root, _, files) ∈ walkdir(lit), file ∈ files
-#     splitext(file)[2] == ".jl" || continue
-#     splitext(file)[1] != "quantum_systems" || continue
-#     ipath = joinpath(root, file)
-#     opath = splitdir(replace(ipath, lit=>lit_output))[1]
-#     Literate.markdown(ipath, opath)
-# end
-
-# makedocs(;
-#     # modules=[QuantumCollocation],
-#     modules=[QuantumCollocation, PiccoloQuantumObjects],
-#     authors="Aaron Trowbridge <aaron.j.trowbridge@gmail.com> and contributors",
-#     sitename="QuantumCollocation.jl!",
-#     format=format,
-#     pages=pages,
-#     pagesonly=true,
-#     warnonly=true,
-#     draft=false,
-# )
-
-# deploydocs(;
-#     repo="github.com/harmoniqs/QuantumCollocation.jl.git",
-#     devbranch="main",
-# )
-
-
-
 using QuantumCollocation
 using PiccoloQuantumObjects
-
-@info "Building Documenter site for QuantumCollocation.jl"
 
 pages = [
     "Home" => "index.md",
@@ -66,15 +11,30 @@ pages = [
         "Rollout" => "generated/tmp/pqo/rollouts.md",
     ],
 
-    # "Examples" => [
-    #     "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
-    #     "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
-    # ],
-    # "Library" => [
-    #     "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
-    #     "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
-    # ],
+    "Examples" => [
+        "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
+        "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
+    ],
+    "Library" => [
+        "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
+        "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
+    ],
 ]
 
-include(normpath(joinpath(@__DIR__, "utils.jl")))
-generate_docs(@__DIR__, "QuantumCollocation", [QuantumCollocation, PiccoloQuantumObjects], pages; make_index=false, make_literate=true, make_assets=false,)
+# Check if utils.jl exists and warn if not found
+utils_path = joinpath(@__DIR__, "utils.jl")
+if !isfile(utils_path)
+    error("docs/utils.jl is required but not found. Please run get_docs_utils.sh")
+end
+
+include("utils.jl")
+
+generate_docs(
+    @__DIR__,
+    "QuantumCollocation",
+    [QuantumCollocation, PiccoloQuantumObjects],
+    pages;
+    make_index = false,
+    make_assets = false,
+    makedocs_kwargs = (draft = true,),
+)
