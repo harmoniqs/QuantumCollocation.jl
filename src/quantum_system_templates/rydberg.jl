@@ -23,7 +23,9 @@ function generate_pattern_with_gap(N::Int, i::Int, gap::Int)
 end
 
 """
-Embed a character into a string at a specific position.
+    lift(x::Char, i::Int, N::Int)::String
+
+Embed a character into a string of the form 'I' * N at a specific position (meant for use with `PiccoloQuantumObjects.QuantumObjectUtils.operator_from_string`).
 """
 function lift(x::Char,i::Int, N::Int)
     qubits = fill('I', N)
@@ -40,7 +42,7 @@ end
         local_detune::Bool=false, # If true, include one local detuning pattern.
         all2all::Bool=true, # If true, include all-to-all interactions.
         ignore_Y_drive::Bool=false, # If true, ignore the Y drive. (In the experiments, X&Y drives are implemented by Rabi amplitude and its phase.)
-    ) -> QuantumSystem
+    )::QuantumSystem
 
 Returns a `QuantumSystem` object for the Rydberg atom chain in the spin basis
     |g⟩ = |0⟩ = [1, 0], |r⟩ = |1⟩ = [0, 1].

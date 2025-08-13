@@ -109,17 +109,17 @@ or editing the docs live:
 ```
 julia --project=docs
 > using LiveServer, QuantumCollocation, Revise
-> servedocs(literate_dir="docs/literate", skip_dir="docs/src/generated", skip_files=["docs/src/index.md"])
+> servedocs(literate_dir="docs/literate", skip_dirs=["docs/src/generated"], skip_files=[])
 ```
 
 > **Note:** `servedocs` needs to watch a subset of the files in the `docs/` folder. If it watches files that are generated on a docs build/re-build, `servedocs` will continuously try to re-serve the pages.
 > 
 > To prevent this, ensure all generated files are included in the skip dirs or skip files args for `servedocs`.
 
-For example, if we forget index.md like so:
+For example, if we forget docs/src/generated like so:
 ```
 julia --project=docs
 > using LiveServer, Piccolo, Revise
-> servedocs(literate_dir="docs/literate", skip_dir="docs/src/generated")
+> servedocs(literate_dir="docs/literate", skip_dirs=[], skip_files=[])
 ```
 it will not build and serve.
