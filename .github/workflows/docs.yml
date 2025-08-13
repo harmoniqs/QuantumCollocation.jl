@@ -1,0 +1,45 @@
+name: Documentation
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags: ['*']
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+jobs:
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      statuses: write
+    env:
+      DOC_TEMPLATE_VERSION: "v0.2.1"  # Change this to the specific tag version you want
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/cache@v2
+      - name: Use Documentation Template
+        run: |
+          ./docs/get_docs_utils.sh ${{ env.DOC_TEMPLATE_VERSION }}
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-docdeploy@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload documentation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-build
+          path: docs/build/
+          retention-days: 1
+      - run: |
+          julia --project=docs -e '
+            using Documenter: DocMeta, doctest
+            using QuantumCollocation
+            DocMeta.setdocmeta!(QuantumCollocation, :DocTestSetup, :(using QuantumCollocation); recursive=true)
+            doctest(QuantumCollocation)'
+            

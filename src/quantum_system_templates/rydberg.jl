@@ -23,7 +23,9 @@ function generate_pattern_with_gap(N::Int, i::Int, gap::Int)
 end
 
 """
-Embed a character into a string at a specific position.
+    lift(x::Char, i::Int, N::Int)::String
+
+Embed a character into a string of the form 'I' * N at a specific position (meant for use with `PiccoloQuantumObjects.QuantumObjectUtils.operator_from_string`).
 """
 function lift(x::Char,i::Int, N::Int)
     qubits = fill('I', N)

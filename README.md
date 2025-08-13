@@ -91,3 +91,35 @@ U_goal = GATES.H
 prob = UnitarySmoothPulseProblem(system, U_goal, T, Δt)
 solve!(prob, max_iter=100)
 ```
+
+
+### Building Documentation
+This package uses a Documenter config that is shared with many of our other repositories. To build the docs, you will need to run the docs setup script to clone and pull down the utility. 
+```
+# first time only
+./docs/get_docs_utils.sh   # or ./get_docs_utils.sh if cwd is in ./docs/
+```
+
+To build the docs pages:
+```
+julia --project=docs docs/make.jl
+```
+
+or editing the docs live:
+```
+julia --project=docs
+> using LiveServer, QuantumCollocation, Revise
+> servedocs(literate_dir="docs/literate", skip_dirs=["docs/src/generated"])
+```
+
+> **Note:** `servedocs` needs to watch a subset of the files in the `docs/` folder. If it watches files that are generated on a docs build/re-build, `servedocs` will continuously try to re-serve the pages.
+> 
+> To prevent this, ensure all generated files are included in the skip dirs or skip files args for `servedocs`.
+
+For example, if we forget docs/src/generated like so:
+```
+julia --project=docs
+> using LiveServer, Piccolo, Revise
+> servedocs(literate_dir="docs/literate")
+```
+it will not build and serve.

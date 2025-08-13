@@ -6,6 +6,21 @@ function coherent_ket(α::Union{Real, Complex}, levels::Int)::Vector{ComplexF64}
     return [exp(-0.5 * abs2(α)) * α^n / sqrt(factorial(n)) for n in 0:levels-1]
 end
 
+"""
+    CatSystem(;
+        g2::Real=0.36,
+        χ_aa::Real=-7e-3,
+        χ_bb::Real=-32,
+        χ_ab::Real=0.79,
+        κa::Real=53e-3,
+        κb::Real=13,
+        cat_levels::Int=13,
+        buffer_levels::Int=3,
+        prefactor::Real=1,
+    )::OpenQuantumSystem
+
+Returns an `OpenQuantumSystem` for a quantum cat.
+"""
 function CatSystem(;
     g2::Real=0.36,
     χ_aa::Real=-7e-3,
