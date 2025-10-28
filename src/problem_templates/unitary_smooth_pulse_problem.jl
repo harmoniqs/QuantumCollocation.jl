@@ -180,13 +180,12 @@ end
 @testitem "Hadamard gate improvement" begin
     using PiccoloQuantumObjects 
 
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     U_goal = GATES[:H]
-    T = 51
-    Δt = 0.2
+    N = 51
 
     prob = UnitarySmoothPulseProblem(
-        sys, U_goal, T, Δt;
+        sys, U_goal, N;
         da_bound=1.0,
         piccolo_options=PiccoloOptions(verbose=false)
     )
@@ -199,13 +198,12 @@ end
 @testitem "Bound states and control norm constraint" begin
     using PiccoloQuantumObjects 
 
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     U_goal = GATES[:H]
-    T = 51
-    Δt = 0.2
+    N = 51
 
     prob = UnitarySmoothPulseProblem(
-        sys, U_goal, T, Δt,
+        sys, U_goal, N;
         piccolo_options=PiccoloOptions(
             verbose=false,
             bound_state=true,
@@ -222,14 +220,13 @@ end
     using PiccoloQuantumObjects 
 
     a = annihilate(3)
-    sys = QuantumSystem([(a + a')/2, (a - a')/(2im)])
+    sys = QuantumSystem([(a + a')/2, (a - a')/(2im)], 10.0, [1.0, 1.0])
     U_goal = EmbeddedOperator(GATES[:H], sys)
-    T = 51
-    Δt = 0.2
+    N = 51
 
     @testset "EmbeddedOperator: solve gate" begin
         prob = UnitarySmoothPulseProblem(
-            sys, U_goal, T, Δt,
+            sys, U_goal, N;
             piccolo_options=PiccoloOptions(verbose=false)
         )
 
@@ -240,7 +237,7 @@ end
 
     @testset "EmbeddedOperator: leakage constraint" begin
         prob = UnitarySmoothPulseProblem(
-            sys, U_goal, T, Δt;
+            sys, U_goal, N;
             da_bound=1.0,
             piccolo_options=PiccoloOptions(
                 leakage_constraint=true, 

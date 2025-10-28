@@ -23,18 +23,17 @@ function KetIntegrator(
     ψ̃::Symbol, 
     u::Symbol 
 ) 
-    return BilinearIntegrator(u_ -> Isomorphisms.G(sys.H(u_, 0.0)), traj, ψ̃, u)
+    return BilinearIntegrator(sys.G, traj, ψ̃, u)
 end
 
 function UnitaryIntegrator(
     sys::QuantumSystem,
     traj::NamedTrajectory, 
-    Ũ⃗::Symbol, 
+    Ũ⃗::Symbol, 
     u::Symbol
 ) 
-    Id = I(sys.levels)
-    Ĝ = u_ -> Id ⊗ Isomorphisms.G(sys.H(u_, 0.0))
-    return BilinearIntegrator(Ĝ, traj, Ũ⃗, u)
+    Ĝ = u_ -> I(sys.levels) ⊗ sys.G(u_, 0.0)
+    return BilinearIntegrator(Ĝ, traj, Ũ⃗, u)
 end
 
 function DensityMatrixIntegrator(

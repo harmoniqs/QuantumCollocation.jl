@@ -30,9 +30,9 @@ where `a` is the annihilation operator.
 - `lab_frame_type`: The type of lab frame Hamiltonian to use, one of (:duffing, :quartic, :cosine).
 - `drives`: Whether to include drives in the Hamiltonian.
 """
-function TransmonSystem(
-    T_max::Float64,
-    drive_bounds::Vector{<:Union{Tuple{Float64, Float64}, Float64}} = 0.2 * ones(2);
+function TransmonSystem(;
+    T_max::Float64=10.0,
+    drive_bounds::Vector{<:Union{Tuple{Float64, Float64}, Float64}}=fill(1.0, 2),
     ω::Float64=4.0,  # GHz
     δ::Float64=0.2, # GHz
     levels::Int=3,
@@ -87,23 +87,11 @@ function TransmonSystem(
         H_drives .*= 2π
     end
 
-    params = Dict{Symbol, Any}(
-        :ω => ω,
-        :δ => δ,
-        :levels => levels,
-        :lab_frame => lab_frame,
-        :frame_ω => frame_ω,
-        :mutiply_by_2π => mutiply_by_2π,
-        :lab_frame_type => lab_frame_type,
-        :drives => drives,
-    )
-
     return QuantumSystem(
         H_drift,
         H_drives,
         T_max,
-        drive_bounds;
-        kwargs...
+        drive_bounds
     )
 end
 
@@ -200,6 +188,8 @@ end
         ωs::AbstractVector{Float64},
         δs::AbstractVector{Float64},
         gs::AbstractMatrix{Float64};
+        T_max::Float64=10.0,
+        drive_bounds::Union{Float64, Vector{<:Union{Tuple{Float64, Float64}, Float64}}}=1.0,
         levels_per_transmon::Int = 3,
         subsystem_levels::AbstractVector{Int} = fill(levels_per_transmon, length(ωs)),
         lab_frame=false,
@@ -214,6 +204,8 @@ function MultiTransmonSystem(
     ωs::AbstractVector{Float64},
     δs::AbstractVector{Float64},
     gs::AbstractMatrix{Float64};
+    T_max::Float64=10.0,
+    drive_bounds::Union{Float64, Vector{<:Union{Tuple{Float64, Float64}, Float64}}}=1.0,
     levels_per_transmon::Int = 3,
     subsystem_levels::AbstractVector{Int} = fill(levels_per_transmon, length(ωs)),
     lab_frame=false,
@@ -225,11 +217,20 @@ function MultiTransmonSystem(
     @assert length(δs) == n_subsystems
     @assert size(gs) == (n_subsystems, n_subsystems)
 
+    # Convert drive_bounds to vector if scalar
+    if drive_bounds isa Float64
+        drive_bounds_vec = fill(drive_bounds, 2)
+    else
+        drive_bounds_vec = drive_bounds
+    end
+
     systems = QuantumSystem[]
 
     for (i, (ω, δ, levels)) ∈ enumerate(zip(ωs, δs, subsystem_levels))
         if i ∈ subsystems
             sysᵢ = TransmonSystem(
+                T_max=T_max,
+                drive_bounds=drive_bounds_vec,
                 levels=levels,
                 ω=ω,
                 δ=δ,
@@ -255,7 +256,7 @@ function MultiTransmonSystem(
 
     levels = prod([sys.levels for sys in systems])
     H_drift = sum(c -> c.op, couplings; init=zeros(ComplexF64, levels, levels))
-    return CompositeQuantumSystem(H_drift, systems)
+    return CompositeQuantumSystem(H_drift, systems, T_max, drive_bounds_vec)
 end
 
 # *************************************************************************** #
@@ -264,16 +265,12 @@ end
     using PiccoloQuantumObjects
     sys = TransmonSystem()
     @test sys isa QuantumSystem
-    @test haskey(sys.params, :ω)
-    @test haskey(sys.params, :δ)
-    @test sys.params[:levels] == 3
+    @test sys.levels == 3
+    @test sys.n_drives == 2
 
     sys2 = TransmonSystem(ω=5.0, δ=0.3, levels=4, lab_frame=true, frame_ω=0.0, lab_frame_type=:duffing, drives=false)
-    @test sys2.params[:ω] == 5.0
-    @test sys2.params[:δ] == 0.3
-    @test sys2.params[:levels] == 4
-    @test sys2.params[:lab_frame] == true
-    @test sys2.params[:drives] == false
+    @test sys2.levels == 4
+    @test sys2.n_drives == 0
 end
 
 @testitem "TransmonSystem: lab_frame_type variations" begin
@@ -316,7 +313,7 @@ end
     comp = MultiTransmonSystem(ωs, δs, gs)
     @test comp isa CompositeQuantumSystem
     @test length(comp.subsystems) == 2
-    @test !iszero(comp.H(zeros(comp.n_drives)))
+    @test !iszero(comp.H(zeros(comp.n_drives), 0.0))
 
     comp2 = MultiTransmonSystem(
         ωs, δs, gs;
@@ -327,7 +324,7 @@ end
     )
     @test comp2 isa CompositeQuantumSystem
     @test length(comp2.subsystems) == 1
-    @test !isapprox(norm(comp2.H(zeros(comp2.n_drives))), 0.0; atol=1e-12)
+    @test !isapprox(norm(comp2.H(zeros(comp2.n_drives), 0.0)), 0.0; atol=1e-12)
 end
 
 @testitem "MultiTransmonSystem: edge cases" begin
@@ -344,6 +341,6 @@ end
     @test comp isa CompositeQuantumSystem
     @test length(comp.subsystems) == 2
     # Only one drive
-    @test comp.subsystems[1].params[:drives] == false
-    @test comp.subsystems[2].params[:drives] == true
+    @test comp.subsystems[1].n_drives == 0
+    @test comp.subsystems[2].n_drives == 2
 end

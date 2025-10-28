@@ -40,6 +40,8 @@ end
         local_detune::Bool=false, # If true, include one local detuning pattern.
         all2all::Bool=true, # If true, include all-to-all interactions.
         ignore_Y_drive::Bool=false, # If true, ignore the Y drive. (In the experiments, X&Y drives are implemented by Rabi amplitude and its phase.)
+        T_max::Float64=10.0, # Maximum evolution time
+        drive_bounds::Vector{<:Union{Tuple{Float64, Float64}, Float64}}=[1.0, 1.0, 1.0], # Bounds for [Ωx, Ωy, Δ] or [Ωx, Δ] if ignore_Y_drive
     ) -> QuantumSystem
 
 Returns a `QuantumSystem` object for the Rydberg atom chain in the spin basis
@@ -58,6 +60,8 @@ H = \sum_i 0.5*\Omega_i(t)\cos(\phi_i(t)) \sigma_i^x - 0.5*\Omega_i(t)\sin(\phi_
 - `local_detune`: If true, include one local detuning pattern.
 - `all2all`: If true, include all-to-all interactions.
 - `ignore_Y_drive`: If true, ignore the Y drive. (In the experiments, X&Y drives are implemented by Rabi amplitude and its phase.)
+- `T_max`: Maximum evolution time.
+- `drive_bounds`: Bounds for drive amplitudes.
 """
 function RydbergChainSystem(;
     N::Int=3, # number of atoms
@@ -67,6 +71,8 @@ function RydbergChainSystem(;
     local_detune::Bool=false,
     all2all::Bool=true,
     ignore_Y_drive::Bool=false,
+    T_max::Float64=10.0,
+    drive_bounds::Vector{<:Union{Tuple{Float64, Float64}, Float64}}=ignore_Y_drive ? [1.0, 1.0] : [1.0, 1.0, 1.0],
 )
     PAULIS = (
         I = ComplexF64[1 0; 0 1],
@@ -115,7 +121,9 @@ function RydbergChainSystem(;
 
     return QuantumSystem(
         H_drift,
-        H_drives
+        H_drives,
+        T_max,
+        drive_bounds
     )
 end
 
@@ -124,5 +132,13 @@ end
 @testitem "Rydberg system test" begin
     using PiccoloQuantumObjects
 
-    @test RydbergChainSystem(N=3,cutoff_order=2,all2all=false) isa QuantumSystem
+    sys = RydbergChainSystem(N=3, cutoff_order=2, all2all=false)
+    @test sys isa QuantumSystem
+    @test sys.levels == 8  # 2^3 for 3 atoms
+    @test sys.n_drives == 3  # X, Y, and detuning
+    
+    # Test with ignore_Y_drive
+    sys2 = RydbergChainSystem(N=2, ignore_Y_drive=true)
+    @test sys2 isa QuantumSystem
+    @test sys2.n_drives == 2  # X and detuning only
 end
