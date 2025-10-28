@@ -131,9 +131,9 @@ end
 @testitem "UnitaryFreePhaseProblem: basic construction" begin
     using PiccoloQuantumObjects
 
-    sys = QuantumSystem(0.3 * PAULIS.X, [PAULIS.Y])
+    sys = QuantumSystem(0.3 * PAULIS.X, [PAULIS.Y], 10.0, [1.0])
     U_goal = GATES.Z
-    T = 51
+    N = 51
     Δt = 0.2
 
     function virtual_z(z::AbstractVector{<:Real})        
@@ -146,7 +146,7 @@ end
     initial_phases = [pi/3]
 
     prob = UnitaryFreePhaseProblem(
-        sys, virtual_z, T, Δt, 
+        sys, virtual_z, N, Δt, 
         init_phases=initial_phases,
         piccolo_options=PiccoloOptions(verbose=false),
         phase_name=:ϕ,

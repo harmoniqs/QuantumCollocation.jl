@@ -154,15 +154,15 @@ end
 @testitem "Sample systems with single initial, target" begin
     using PiccoloQuantumObjects
 
-    T = 50
+    N = 50
     Δt = 0.2
-    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
-    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
     
     prob = QuantumStateSamplingProblem(
-        [sys1, sys2], ψ_init, ψ_target, T, Δt;
+        [sys1, sys2], ψ_init, ψ_target, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     
@@ -187,17 +187,17 @@ end
 @testitem "Sample systems with multiple initial, target" begin
     using PiccoloQuantumObjects
 
-    T = 50
+    N = 50
     Δt = 0.2
-    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
-    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     
     # Multiple initial and target states
     ψ_inits = Vector{ComplexF64}.([[1.0, 0.0], [0.0, 1.0]])
     ψ_targets = Vector{ComplexF64}.([[0.0, 1.0], [1.0, 0.0]])
     
     prob = QuantumStateSamplingProblem(
-        [sys1, sys2], ψ_inits, ψ_targets, T, Δt;
+        [sys1, sys2], ψ_inits, ψ_targets, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     

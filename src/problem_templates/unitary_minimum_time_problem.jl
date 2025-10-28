@@ -157,13 +157,13 @@ end
     H_drift = 0.1PAULIS[:Z]
     H_drives = [PAULIS[:X], PAULIS[:Y]]
     U_goal = GATES[:H]
-    T = 51
+    N = 51
     Δt = 0.2
 
-    sys = QuantumSystem(H_drift, H_drives)
+    sys = QuantumSystem(H_drift, H_drives, 10.0, [1.0, 1.0])
 
     prob = UnitarySmoothPulseProblem(
-        sys, U_goal, T, Δt, Δt_min=Δt * 0.01,
+        sys, U_goal, N, Δt_min=Δt * 0.01,
         piccolo_options=PiccoloOptions(verbose=false)
     )
 

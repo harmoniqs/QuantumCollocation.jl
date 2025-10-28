@@ -211,30 +211,30 @@ end
     using LinearAlgebra
     using PiccoloQuantumObjects
 
-    system = QuantumSystem([PAULIS.X, PAULIS.Y])
-    varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [PAULIS.X] )
-    T = 50
+    system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+    varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [PAULIS.X], 10.0, [1.0, 1.0])
+    N = 50
     Δt = 0.2
 
     sense_scale = 8.0
     sense_prob = UnitaryVariationalProblem(
-        varsys, GATES.X, T, Δt, 
+        varsys, GATES.X, N, Δt, 
         variational_scales=[sense_scale], 
-        sensitive_times=[[T]],
+        sensitive_times=[[N]],
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(sense_prob, max_iter=20, print_level=1, verbose=false)
 
     rob_scale = 1 / 8.0
     rob_prob = UnitaryVariationalProblem(
-        varsys, GATES.X, T, Δt, 
+        varsys, GATES.X, N, Δt, 
         variational_scales=[rob_scale], 
-        robust_times=[[T]],
+        robust_times=[[N]],
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(rob_prob, max_iter=20, print_level=1, verbose=false)
 
-    sense_n = norm(sense_scale * sense_prob.trajectory.Ũ⃗ᵥ1)
-    rob_n = norm(rob_scale * rob_prob.trajectory.Ũ⃗ᵥ1)
+    sense_n = norm(sense_scale * sense_prob.trajectory.Ũ⃗ᵥ1)
+    rob_n = norm(rob_scale * rob_prob.trajectory.Ũ⃗ᵥ1)
     @test sense_n > rob_n
 end

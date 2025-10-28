@@ -171,21 +171,21 @@ end
 @testitem "Sample robustness test" begin
     using PiccoloQuantumObjects
 
-    T = 50
+    N = 50
     Δt = 0.2
-    timesteps = fill(Δt, T)
+    timesteps = fill(Δt, N)
     operator = GATES[:H]
-    systems(ζ) = QuantumSystem(ζ * GATES[:Z], [GATES[:X], GATES[:Y]])
+    systems(ζ) = QuantumSystem(ζ * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     
     samples = [0.0, 0.1]
     prob = UnitarySamplingProblem(
-        [systems(x) for x in samples], operator, T, Δt,
+        [systems(x) for x in samples], operator, N, Δt,
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(prob, max_iter=100, print_level=1, verbose=false)
     
     base_prob = UnitarySmoothPulseProblem(
-        systems(samples[1]), operator, T, Δt,
+        systems(samples[1]), operator, N,
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(base_prob, max_iter=100, verbose=false, print_level=1)
