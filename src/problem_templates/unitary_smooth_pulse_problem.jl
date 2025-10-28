@@ -2,15 +2,15 @@ export UnitarySmoothPulseProblem
 
 
 @doc raw"""
-    UnitarySmoothPulseProblem(system::AbstractQuantumSystem, operator::AbstractPiccoloOperator, T::Int, Δt::Float64; kwargs...)
-    UnitarySmoothPulseProblem(H_drift, H_drives, operator, T, Δt; kwargs...)
+    UnitarySmoothPulseProblem(system::AbstractQuantumSystem, operator::AbstractPiccoloOperator, N::Int; kwargs...)
+    UnitarySmoothPulseProblem(H_drift, H_drives, operator, N; kwargs...)
 
 Construct a `DirectTrajOptProblem` for a free-time unitary gate problem with smooth control pulses enforced by constraining the second derivative of the pulse trajectory, i.e.,
 
 ```math
 \begin{aligned}
 \underset{\vec{\tilde{U}}, a, \dot{a}, \ddot{a}, \Delta t}{\text{minimize}} & \quad
-Q \cdot \ell\qty(\vec{\tilde{U}}_T, \vec{\tilde{U}}_{\text{goal}}) + \frac{1}{2} \sum_t \qty(R_a a_t^2 + R_{\dot{a}} \dot{a}_t^2 + R_{\ddot{a}} \ddot{a}_t^2) \\
+Q \cdot \ell\qty(\vec{\tilde{U}}_N, \vec{\tilde{U}}_{\text{goal}}) + \frac{1}{2} \sum_t \qty(R_a a_t^2 + R_{\dot{a}} \dot{a}_t^2 + R_{\ddot{a}} \ddot{a}_t^2) \\
 \text{ subject to } & \quad \vb{P}^{(n)}\qty(\vec{\tilde{U}}_{t+1}, \vec{\tilde{U}}_t, a_t, \Delta t_t) = 0 \\
 & \quad a_{t+1} - a_t - \dot{a}_t \Delta t_t = 0 \\
 & \quad \dot{a}_{t+1} - \dot{a}_t - \ddot{a}_t \Delta t_t = 0 \\
@@ -23,8 +23,8 @@ Q \cdot \ell\qty(\vec{\tilde{U}}_T, \vec{\tilde{U}}_{\text{goal}}) + \frac{1}{2}
 where, for $U \in SU(N)$,
 
 ```math
-\ell\qty(\vec{\tilde{U}}_T, \vec{\tilde{U}}_{\text{goal}}) =
-\abs{1 - \frac{1}{N} \abs{ \tr \qty(U_{\text{goal}}, U_T)} }
+\ell\qty(\vec{\tilde{U}}_N, \vec{\tilde{U}}_{\text{goal}}) =
+\abs{1 - \frac{1}{N} \abs{ \tr \qty(U_{\text{goal}}, U_N)} }
 ```
 
 is the *infidelity* objective function, $Q$ is a weight, $R_a$, $R_{\dot{a}}$, and $R_{\ddot{a}}$ are weights on the regularization terms, and $\vb{P}^{(n)}$ is the $n$th-order Pade integrator.
@@ -37,7 +37,7 @@ or
 - `H_drives::Vector{<:AbstractMatrix{<:Number}}`: the control hamiltonians
 with
 - `goal::AbstractPiccoloOperator`: the target unitary, either in the form of an `EmbeddedOperator` or a `Matrix{ComplexF64}
-- `T::Int`: the number of timesteps
+- `N::Int`: the number of knot points
 - `Δt::Float64`: the (initial) time step size
 
 # Keyword Arguments
@@ -68,16 +68,13 @@ function UnitarySmoothPulseProblem end
 function UnitarySmoothPulseProblem(
     system::AbstractQuantumSystem,
     goal::AbstractPiccoloOperator,
-    T::Int,
-    Δt::Union{Float64, <:AbstractVector{Float64}};
+    N::Int;
     unitary_integrator=UnitaryIntegrator,
     state_name::Symbol = :Ũ⃗,
     control_name::Symbol = :a,
     timestep_name::Symbol = :Δt,
     init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
     a_guess::Union{Matrix{Float64}, Nothing}=nothing,
-    a_bound::Float64=1.0,
-    a_bounds=fill(a_bound, system.n_drives),
     da_bound::Float64=Inf,
     da_bounds=fill(da_bound, system.n_drives),
     dda_bound::Float64=1.0,
@@ -101,10 +98,14 @@ function UnitarySmoothPulseProblem(
     if !isnothing(init_trajectory)
         traj = init_trajectory
     else
+        a_bounds = (
+            [system.drive_bounds[j][1] for j in 1:length(system.drive_bounds)], 
+            [system.drive_bounds[j][2] for j in 1:length(system.drive_bounds)]
+        )
         traj = initialize_trajectory(
             goal,
-            T,
-            Δt,
+            N,
+            system.T_max / N,
             system.n_drives,
             (a_bounds, da_bounds, dda_bounds);
             state_name=state_name,
@@ -147,6 +148,14 @@ function UnitarySmoothPulseProblem(
         DerivativeIntegrator(traj, control_name, control_names[2]),
         DerivativeIntegrator(traj, control_names[2], control_names[3]),
     ]
+
+    # TODO: see if using a linear constraint here is the right choice
+    # derivative_constraints = [
+        # DerivativeConstraint(control_name, control_names[2], traj),
+        # DerivativeConstraint(control_names[2], control_names[3], traj),
+    # ]
+
+    # constraints = vcat(constraints, derivative_constraints)
 
     return DirectTrajOptProblem(
         traj,

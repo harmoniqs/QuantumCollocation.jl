@@ -1,13 +1,13 @@
 export QuantumStateSmoothPulseProblem
 
 """
-    QuantumStateSmoothPulseProblem(system, ψ_inits, ψ_goals, T, Δt; kwargs...)
-    QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, T, Δt; kwargs...)
+    QuantumStateSmoothPulseProblem(system, ψ_inits, ψ_goals, N, Δt; kwargs...)
+    QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, N, Δt; kwargs...)
     QuantumStateSmoothPulseProblem(H_drift, H_drives, args...; kwargs...)
 
 Create a quantum state smooth pulse problem. The goal is to find a control pulse `a(t)` 
 that drives all of the initial states `ψ_inits` to the corresponding target states 
-`ψ_goals` using `T` timesteps of size `Δt`. This problem also controls the  first and 
+`ψ_goals` using `N` knot points of size `Δt`. This problem also controls the  first and 
 second derivatives of the control pulse, `da(t)` and `dda(t)`, to ensure smoothness.
 
 # Arguments
@@ -22,7 +22,7 @@ or
 - `ψ_init::AbstractVector{<:ComplexF64}`: The initial state.
 - `ψ_goal::AbstractVector{<:ComplexF64}`: The target state.
 with
-- `T::Int`: The number of timesteps.
+- `N::Int`: The number of knot points.
 - `Δt::Float64`: The timestep size.
 
 
@@ -55,9 +55,10 @@ function QuantumStateSmoothPulseProblem(
     sys::AbstractQuantumSystem,
     ψ_inits::Vector{<:AbstractVector{<:ComplexF64}},
     ψ_goals::Vector{<:AbstractVector{<:ComplexF64}},
-    T::Int,
+    N::Int,
     Δt::Union{Float64, <:AbstractVector{Float64}};
     ket_integrator=KetIntegrator,
+    time_dependent_integrator=false,
     state_name::Symbol=:ψ̃,
     control_name::Symbol=:a,
     timestep_name::Symbol=:Δt,
@@ -95,7 +96,7 @@ function QuantumStateSmoothPulseProblem(
         traj = initialize_trajectory(
             ψ_goals,
             ψ_inits,
-            T,
+            N,
             Δt,
             sys.n_drives,
             (a_bounds, da_bounds, dda_bounds);
@@ -108,6 +109,7 @@ function QuantumStateSmoothPulseProblem(
             a_guess=a_guess,
             system=sys,
             rollout_integrator=piccolo_options.rollout_integrator,
+            store_times=time_dependent_integrator
         )
     end
 
@@ -146,10 +148,8 @@ function QuantumStateSmoothPulseProblem(
     state_integrators = []
 
     for name ∈ state_names
-        push!(
-            state_integrators, 
-            ket_integrator(sys, traj, name, control_name)
-        )
+        integrator_ = ket_integrator(sys, traj, name, control_name)
+        push!(state_integrators, integrator_)
     end
 
     integrators = [
@@ -191,16 +191,16 @@ end
 @testitem "Test quantum state smooth pulse" begin
     using PiccoloQuantumObjects 
 
-    T = 51
+    N = 51
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
     
     # Single initial and target states
     # --------------------------------
     prob = QuantumStateSmoothPulseProblem(
-        sys, ψ_init, ψ_target, T, Δt;
+        sys, ψ_init, ψ_target, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     initial = rollout_fidelity(prob.trajectory, sys)
@@ -212,14 +212,14 @@ end
 @testitem "Test multiple quantum states smooth pulse" begin
     using PiccoloQuantumObjects 
 
-    T = 50
+    N = 50
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     ψ_inits = Vector{ComplexF64}.([[1.0, 0.0], [0.0, 1.0]])
     ψ_targets = Vector{ComplexF64}.([[0.0, 1.0], [1.0, 0.0]])
 
     prob = QuantumStateSmoothPulseProblem(
-        sys, ψ_inits, ψ_targets, T, Δt;
+        sys, ψ_inits, ψ_targets, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     initial = rollout_fidelity(prob.trajectory, sys)

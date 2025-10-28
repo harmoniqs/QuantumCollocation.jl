@@ -16,6 +16,8 @@ function CatSystem(;
     cat_levels::Int=13,
     buffer_levels::Int=3,
     prefactor::Real=1,
+    T_max::Real=1.0,
+    drive_bounds::Vector{<:Real}=[1.0, 1.0]
 )
     params = Dict(
         :g2 => prefactor *  g2,
@@ -47,19 +49,21 @@ function CatSystem(;
     return OpenQuantumSystem(
         H_drift,
         H_drives,
-        L_dissipators;
+        T_max,
+        drive_bounds,
+        dissipation_operators=L_dissipators,
         params=params
     )
 end
 
-function get_cat_controls(sys::AbstractQuantumSystem, α::Real, T::Int)
+function get_cat_controls(sys::AbstractQuantumSystem, α::Real, N::Int)
     @assert haskey(sys.params, :g2) "Requires photon transfer coupling between buffer and cat"
     @assert haskey(sys.params, :χ_aa) "Requires Kerr coupling for cat"
     buffer_drive = abs2(α) * sys.params[:g2]
     cat_kerr_correction = (2.0 * abs2(α) + 1.0) * sys.params[:χ_aa]
     return stack([
-        fill(buffer_drive, T),
-        fill(cat_kerr_correction, T)
+        fill(buffer_drive, N),
+        fill(cat_kerr_correction, N)
     ], dims=1)
 end
 

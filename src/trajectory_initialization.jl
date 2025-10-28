@@ -147,7 +147,7 @@ linear_interpolation(X::AbstractMatrix, Y::AbstractMatrix, n::Int) =
 function initialize_unitary_trajectory(
     U_init::AbstractMatrix{<:Number},
     U_goal::AbstractPiccoloOperator,
-    T::Int;
+    N::Int;
     geodesic::Bool=true,
     system::Union{AbstractQuantumSystem, Nothing}=nothing
 )
@@ -157,9 +157,9 @@ function initialize_unitary_trajectory(
         else
             H_drift = zeros(size(U_init))
         end
-        Ũ⃗ = unitary_geodesic(U_init, U_goal, T, H_drift=H_drift)
+        Ũ⃗ = unitary_geodesic(U_init, U_goal, N, H_drift=H_drift)
     else
-        Ũ⃗ = unitary_linear_interpolation(U_init, U_goal, T)
+        Ũ⃗ = unitary_linear_interpolation(U_init, U_goal, N)
     end
     return Ũ⃗
 end
@@ -171,7 +171,7 @@ end
 function initialize_control_trajectory(
     n_drives::Int,
     n_derivatives::Int,
-    T::Int,
+    N::Int,
     bounds::VectorBound,
     drive_derivative_σ::Float64,
 )
@@ -187,13 +187,13 @@ function initialize_control_trajectory(
 
     a = hcat([
         zeros(n_drives),
-        vcat([rand(a_dists[i], 1, T - 2) for i = 1:n_drives]...),
+        vcat([rand(a_dists[i], 1, N - 2) for i = 1:n_drives]...),
         zeros(n_drives)
     ]...)
     push!(controls, a)
 
     for _ in 1:n_derivatives
-        push!(controls, randn(n_drives, T) * drive_derivative_σ)
+        push!(controls, randn(n_drives, N) * drive_derivative_σ)
     end
 
     return controls
@@ -239,7 +239,7 @@ function initialize_trajectory(
     state_inits::Vector{<:AbstractVector{Float64}},
     state_goals::Vector{<:AbstractVector{Float64}},
     state_names::AbstractVector{Symbol},
-    T::Int,
+    N::Int,
     Δt::Union{Float64, AbstractVecOrMat{<:Float64}},
     n_drives::Int,
     control_bounds::Tuple{Vararg{VectorBound}};
@@ -253,6 +253,7 @@ function initialize_trajectory(
     a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
     global_component_data::NamedTuple{gname, <:Tuple{Vararg{AbstractVector{<:Real}}}} where gname=(;),
     verbose=false,
+    store_times=false,
 )
     @assert length(state_data) == length(state_names) == length(state_inits) == length(state_goals) "state_data, state_names, state_inits, and state_goals must have the same length"
     @assert length(control_bounds) == n_control_derivatives + 1 "control_bounds must have $n_control_derivatives + 1 elements"
@@ -274,12 +275,12 @@ function initialize_trajectory(
 
     # Timestep data
     if Δt isa Real
-        timestep_data = fill(Δt, 1, T)
+        timestep_data = fill(Δt, 1, N)
     elseif Δt isa AbstractVector
         timestep_data = reshape(Δt, 1, :)
     else
         timestep_data = Δt
-        @assert size(Δt) == (1, T) "Δt must be a Real, AbstractVector, or 1x$(T) AbstractMatrix"
+        @assert size(Δt) == (1, N) "Δt must be a Real, AbstractVector, or 1x$(N) AbstractMatrix"
     end
     timestep = timestep_name
 
@@ -288,6 +289,11 @@ function initialize_trajectory(
         (state_names .=> state_inits)...,
         control_name => zeros(n_drives),
     )
+
+    if store_times
+        initial = merge(initial, (; t=[0.0]))
+        t_data = cumsum(timestep_data, dims=2)
+    end
 
     final = (;
         control_name => zeros(n_drives),
@@ -318,7 +324,7 @@ function initialize_trajectory(
         control_data = initialize_control_trajectory(
             n_drives,
             n_control_derivatives,
-            T,
+            N,
             bounds[control_name],
             drive_derivative_σ
         )
@@ -330,6 +336,12 @@ function initialize_trajectory(
     names = [state_names..., control_names..., timestep_name]
     values = [state_data..., control_data..., timestep_data]
     controls = (control_names[end], timestep_name)
+
+    if store_times
+        names = [names..., :t]
+        values = [values..., t_data]
+        controls = (controls..., :t)
+    end
 
     return NamedTrajectory(
         (; (names .=> values)...),
@@ -350,10 +362,10 @@ Trajectory initialization of unitaries.
 """
 function initialize_trajectory(
     U_goal::AbstractPiccoloOperator,
-    T::Int,
+    N::Int,
     Δt::Union{Real, AbstractVecOrMat{<:Real}},
     args...;
-    state_name::Symbol=:Ũ⃗,
+    state_name::Symbol=:Ũ⃗,
     U_init::AbstractMatrix{<:Number}=Matrix{ComplexF64}(I(size(U_goal, 1))),
     a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
     system::Union{AbstractQuantumSystem, Nothing}=nothing,
@@ -365,13 +377,13 @@ function initialize_trajectory(
     if Δt isa AbstractMatrix
         timesteps = vec(Δt)
     elseif Δt isa Float64
-        timesteps = fill(Δt, T)
+        timesteps = fill(Δt, N)
     else
         timesteps = Δt
     end
 
     # Initial state and goal
-    Ũ⃗_init = operator_to_iso_vec(U_init)
+    Ũ⃗_init = operator_to_iso_vec(U_init)
 
     if U_goal isa EmbeddedOperator
         Ũ⃗_goal = operator_to_iso_vec(U_goal.operator)
@@ -381,24 +393,24 @@ function initialize_trajectory(
 
     # Construct state data
     if isnothing(a_guess)
-        Ũ⃗_traj = initialize_unitary_trajectory(
+        Ũ⃗_traj = initialize_unitary_trajectory(
             U_init, 
             U_goal, 
-            T; 
+            N; 
             geodesic=geodesic, 
             system=system
         )
     else
         @assert !isnothing(system) "System must be provided if a_guess is provided."
-        Ũ⃗_traj = unitary_rollout(Ũ⃗_init, a_guess, timesteps, system; integrator=rollout_integrator)
+        Ũ⃗_traj = unitary_rollout(Ũ⃗_init, a_guess, timesteps, system; integrator=rollout_integrator)
     end
     
     return initialize_trajectory(
-        [Ũ⃗_traj],
-        [Ũ⃗_init],
-        [Ũ⃗_goal],
+        [Ũ⃗_traj],
+        [Ũ⃗_init],
+        [Ũ⃗_goal],
         [state_name],
-        T,
+        N,
         Δt,
         args...;
         a_guess=a_guess,
@@ -416,7 +428,7 @@ Trajectory initialization of quantum states.
 function initialize_trajectory(
     ψ_goals::AbstractVector{<:AbstractVector{ComplexF64}},
     ψ_inits::AbstractVector{<:AbstractVector{ComplexF64}},
-    T::Int,
+    N::Int,
     Δt::Union{Real, AbstractVector{<:Real}},
     args...;
     state_name=:ψ̃,
@@ -438,7 +450,7 @@ function initialize_trajectory(
     if Δt isa AbstractMatrix
         timesteps = vec(Δt)
     elseif Δt isa Float64
-        timesteps = fill(Δt, T)
+        timesteps = fill(Δt, N)
     else
         timesteps = Δt
     end
@@ -447,7 +459,7 @@ function initialize_trajectory(
     ψ̃_trajs = Matrix{Float64}[]
     if isnothing(a_guess)
         for (ψ̃_init, ψ̃_goal) ∈ zip(ψ̃_inits, ψ̃_goals)
-            ψ̃_traj = linear_interpolation(ψ̃_init, ψ̃_goal, T)
+            ψ̃_traj = linear_interpolation(ψ̃_init, ψ̃_goal, N)
             push!(ψ̃_trajs, ψ̃_traj)
         end
         if system isa AbstractVector
@@ -465,7 +477,7 @@ function initialize_trajectory(
         ψ̃_inits,
         ψ̃_goals,
         state_names,
-        T,
+        N,
         Δt,
         args...;
         a_guess=a_guess,
@@ -481,7 +493,7 @@ Trajectory initialization of density matrices.
 function initialize_trajectory(
     ρ_init,
     ρ_goal,
-    T::Int,
+    N::Int,
     Δt::Union{Real, AbstractVecOrMat{<:Real}},
     args...;
     state_name::Symbol=:ρ⃗̃,
@@ -494,7 +506,7 @@ function initialize_trajectory(
     if Δt isa AbstractMatrix
         timesteps = vec(Δt)
     elseif Δt isa Float64
-        timesteps = fill(Δt, T)
+        timesteps = fill(Δt, N)
     else
         timesteps = Δt
     end
@@ -505,7 +517,7 @@ function initialize_trajectory(
 
     # Construct state data
     if isnothing(a_guess)
-        ρ⃗̃_traj = linear_interpolation(ρ_init, ρ_goal, T)
+        ρ⃗̃_traj = linear_interpolation(ρ_init, ρ_goal, N)
     else
         @assert !isnothing(system) "System must be provided if a_guess is provided."
 
@@ -523,7 +535,7 @@ function initialize_trajectory(
         [ρ⃗̃_init],
         [ρ⃗̃_goal],
         [state_name],
-        T,
+        N,
         Δt,
         args...;
         a_guess=a_guess,
