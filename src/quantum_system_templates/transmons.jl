@@ -30,7 +30,9 @@ where `a` is the annihilation operator.
 - `lab_frame_type`: The type of lab frame Hamiltonian to use, one of (:duffing, :quartic, :cosine).
 - `drives`: Whether to include drives in the Hamiltonian.
 """
-function TransmonSystem(;
+function TransmonSystem(
+    T_max::Float64,
+    drive_bounds::Vector{<:Union{Tuple{Float64, Float64}, Float64}} = 0.2 * ones(2);
     ω::Float64=4.0,  # GHz
     δ::Float64=0.2, # GHz
     levels::Int=3,
@@ -39,8 +41,8 @@ function TransmonSystem(;
     mutiply_by_2π::Bool=true,
     lab_frame_type::Symbol=:duffing,
     drives::Bool=true,
+    kwargs...
 )
-
     @assert lab_frame_type ∈ (:duffing, :quartic, :cosine) "lab_frame_type must be one of (:duffing, :quartic, :cosine)"
 
     if lab_frame
@@ -98,8 +100,10 @@ function TransmonSystem(;
 
     return QuantumSystem(
         H_drift,
-        H_drives;
-        params=params
+        H_drives,
+        T_max,
+        drive_bounds;
+        kwargs...
     )
 end
 
