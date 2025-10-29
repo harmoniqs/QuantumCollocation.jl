@@ -144,6 +144,33 @@ linear_interpolation(X::AbstractMatrix, Y::AbstractMatrix, n::Int) =
 
 # ============================================================================= #
 
+"""
+    initialize_unitary_trajectory(
+        U_init::AbstractMatrix{<:Number},
+        U_goal::AbstractPiccoloOperator,
+        N::Int;
+        geodesic::Bool=true,
+        system::Union{AbstractQuantumSystem, Nothing}=nothing
+    )
+
+Generate an initial unitary trajectory from `U_init` to `U_goal`.
+
+# Arguments
+- `U_init::AbstractMatrix{<:Number}`: Initial unitary operator
+- `U_goal::AbstractPiccoloOperator`: Target unitary operator
+- `N::Int`: Number of time steps
+
+# Keyword Arguments
+- `geodesic::Bool=true`: Use geodesic interpolation (vs. linear interpolation)
+- `system::Union{AbstractQuantumSystem, Nothing}=nothing`: System for drift Hamiltonian
+
+# Returns
+- `Matrix{Float64}`: Trajectory of unitaries in iso-vec representation (column per timestep)
+
+# Notes
+- Geodesic interpolation follows the shortest path on the unitary manifold
+- If a system is provided, the drift Hamiltonian is used in geodesic computation
+"""
 function initialize_unitary_trajectory(
     U_init::AbstractMatrix{<:Number},
     U_goal::AbstractPiccoloOperator,
@@ -168,6 +195,34 @@ end
 #                           Initial controls                                    #
 # ----------------------------------------------------------------------------- #
 
+"""
+    initialize_control_trajectory(
+        n_drives::Int,
+        n_derivatives::Int,
+        N::Int,
+        bounds::VectorBound,
+        drive_derivative_σ::Float64
+    )
+
+Generate random initial control trajectories with derivatives.
+
+Creates smooth control trajectories by randomly sampling the base controls within bounds
+and generating higher derivatives from a Gaussian distribution.
+
+# Arguments
+- `n_drives::Int`: Number of independent control drives
+- `n_derivatives::Int`: Number of derivatives to generate (e.g., 2 for u, du, ddu)
+- `N::Int`: Number of time steps
+- `bounds::VectorBound`: Bounds for the control amplitudes (vector or tuple of bounds)
+- `drive_derivative_σ::Float64`: Standard deviation for random derivative initialization
+
+# Returns
+- `Vector{Matrix{Float64}}`: Vector of control matrices [u, du, ddu, ...]
+
+# Notes
+- Base controls are zero at initial and final timesteps for smooth boundary conditions
+- Derivatives are sampled from N(0, drive_derivative_σ²)
+"""
 function initialize_control_trajectory(
     n_drives::Int,
     n_derivatives::Int,
@@ -199,6 +254,30 @@ function initialize_control_trajectory(
     return controls
 end
 
+"""
+    initialize_control_trajectory(
+        u::AbstractMatrix,
+        Δt::AbstractVecOrMat,
+        n_derivatives::Int
+    )
+
+Generate control derivatives from a provided control trajectory.
+
+Takes a given control trajectory and computes its time derivatives using finite differences.
+Ensures smooth transitions at boundaries to avoid constraint violations.
+
+# Arguments
+- `u::AbstractMatrix`: Control trajectory (n_drives × N)
+- `Δt::AbstractVecOrMat`: Time step size(s)
+- `n_derivatives::Int`: Number of derivatives to compute
+
+# Returns
+- `Vector{Matrix{Float64}}`: Vector of control matrices [u, du, ddu, ...]
+
+# Notes
+- Uses finite difference approximation for derivatives
+- Adjusts penultimate point to ensure smooth final derivative
+"""
 function initialize_control_trajectory(
     a::AbstractMatrix,
     Δt::AbstractVecOrMat,
@@ -227,12 +306,45 @@ initialize_control_trajectory(a::AbstractMatrix, Δt::Real, n_derivatives::Int) 
 # ----------------------------------------------------------------------------- #
 
 """
-    initialize_trajectory
+    initialize_trajectory(
+        state_data::Vector{<:AbstractMatrix{Float64}},
+        state_inits::Vector{<:AbstractVector{Float64}},
+        state_goals::Vector{<:AbstractVector{Float64}},
+        state_names::AbstractVector{Symbol},
+        N::Int,
+        Δt::Union{Float64, AbstractVecOrMat{<:Float64}},
+        n_drives::Int,
+        control_bounds::Tuple{Vararg{VectorBound}};
+        kwargs...
+    )
 
+Initialize a trajectory for a quantum control problem with custom state data.
 
-Initialize a trajectory for a control problem. The trajectory is initialized with
-data that should be consistently the same type (in this case, Float64).
+# Arguments
+- `state_data::Vector{<:AbstractMatrix{Float64}}`: Pre-computed state trajectories (one matrix per state)
+- `state_inits::Vector{<:AbstractVector{Float64}}`: Initial state values
+- `state_goals::Vector{<:AbstractVector{Float64}}`: Target state values
+- `state_names::AbstractVector{Symbol}`: Names for each state component
+- `N::Int`: Number of time steps
+- `Δt::Union{Float64, AbstractVecOrMat{<:Float64}}`: Time step size(s)
+- `n_drives::Int`: Number of control drives
+- `control_bounds::Tuple{Vararg{VectorBound}}`: Bounds for controls and their derivatives
 
+# Keyword Arguments
+- `bound_state::Bool=false`: Whether to bound the state variables
+- `control_name::Symbol=:u`: Name for the control variable
+- `n_control_derivatives::Int=length(control_bounds) - 1`: Number of control derivatives
+- `zero_initial_and_final_derivative::Bool=false`: Enforce zero derivatives at boundaries
+- `timestep_name::Symbol=:Δt`: Name for the timestep variable
+- `Δt_bounds::ScalarBound=(0.5 * Δt, 1.5 * Δt)`: Bounds for the timestep
+- `drive_derivative_σ::Float64=0.1`: Standard deviation for random control derivatives
+- `u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing`: Initial guess for controls
+- `global_component_data::NamedTuple=NamedTuple()`: Additional global trajectory components
+- `verbose::Bool=false`: Print detailed initialization information
+- `store_times::Bool=false`: Store cumulative time values in the trajectory
+
+# Returns
+- `NamedTrajectory`: Initialized trajectory with states, controls, and timesteps
 """
 function initialize_trajectory(
     state_data::Vector{<:AbstractMatrix{Float64}},
@@ -244,13 +356,13 @@ function initialize_trajectory(
     n_drives::Int,
     control_bounds::Tuple{Vararg{VectorBound}};
     bound_state=false,
-    control_name=:a,
+    control_name=:u,
     n_control_derivatives::Int=length(control_bounds) - 1,
     zero_initial_and_final_derivative=false,
     timestep_name=:Δt,
     Δt_bounds::ScalarBound=(0.5 * Δt, 1.5 * Δt),
     drive_derivative_σ::Float64=0.1,
-    a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
+    u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
     global_component_data::NamedTuple{gname, <:Tuple{Vararg{AbstractVector{<:Real}}}} where gname=(;),
     verbose=false,
     store_times=false,
@@ -319,7 +431,7 @@ function initialize_trajectory(
     end
 
     # Trajectory
-    if isnothing(a_guess)
+    if isnothing(u_guess)
         # Randomly sample controls
         control_data = initialize_control_trajectory(
             n_drives,
@@ -330,7 +442,7 @@ function initialize_trajectory(
         )
     else
         # Use provided controls and take derivatives
-        control_data = initialize_control_trajectory(a_guess, Δt, n_control_derivatives)
+        control_data = initialize_control_trajectory(u_guess, Δt, n_control_derivatives)
     end
 
     names = [state_names..., control_names..., timestep_name]
@@ -356,9 +468,43 @@ function initialize_trajectory(
 end
 
 """
-    initialize_trajectory
+    initialize_trajectory(
+        U_goal::AbstractPiccoloOperator,
+        N::Int,
+        Δt::Union{Real, AbstractVecOrMat{<:Real}},
+        n_drives::Int,
+        control_bounds::Tuple{Vararg{VectorBound}};
+        kwargs...
+    )
 
-Trajectory initialization of unitaries.
+Initialize a trajectory for unitary gate synthesis problems.
+
+Constructs a trajectory that evolves from an initial unitary (default: identity) to a target
+unitary gate. The trajectory can use geodesic interpolation or rollout-based initialization.
+
+# Arguments
+- `U_goal::AbstractPiccoloOperator`: Target unitary operator (can be `EmbeddedOperator`)
+- `N::Int`: Number of time steps
+- `Δt::Union{Real, AbstractVecOrMat{<:Real}}`: Time step size(s)
+- `n_drives::Int`: Number of control drives
+- `control_bounds::Tuple{Vararg{VectorBound}}`: Bounds for controls and their derivatives
+
+# Keyword Arguments
+- `state_name::Symbol=:Ũ⃗`: Name for the unitary state variable (iso-vec representation)
+- `U_init::AbstractMatrix{<:Number}=I`: Initial unitary operator
+- `u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing`: Initial guess for controls
+- `system::Union{AbstractQuantumSystem, Nothing}=nothing`: Quantum system for rollout
+- `rollout_integrator::Function=expv`: Integrator for unitary dynamics
+- `geodesic=true`: Use geodesic interpolation between unitaries
+- Additional kwargs passed to the base `initialize_trajectory` method
+
+# Returns
+- `NamedTrajectory`: Initialized trajectory with unitary states, controls, and timesteps
+
+# Notes
+- If `u_guess` is provided, the trajectory is computed via rollout using the quantum system
+- If `u_guess` is `nothing`, geodesic interpolation is used (requires `geodesic=true`)
+- The unitary is stored in iso-vec representation for efficient optimization
 """
 function initialize_trajectory(
     U_goal::AbstractPiccoloOperator,
@@ -367,7 +513,7 @@ function initialize_trajectory(
     args...;
     state_name::Symbol=:Ũ⃗,
     U_init::AbstractMatrix{<:Number}=Matrix{ComplexF64}(I(size(U_goal, 1))),
-    a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
+    u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
     system::Union{AbstractQuantumSystem, Nothing}=nothing,
     rollout_integrator::Function=expv,
     geodesic=true,
@@ -392,7 +538,7 @@ function initialize_trajectory(
     end
 
     # Construct state data
-    if isnothing(a_guess)
+    if isnothing(u_guess)
         Ũ⃗_traj = initialize_unitary_trajectory(
             U_init, 
             U_goal, 
@@ -401,8 +547,8 @@ function initialize_trajectory(
             system=system
         )
     else
-        @assert !isnothing(system) "System must be provided if a_guess is provided."
-        Ũ⃗_traj = unitary_rollout(Ũ⃗_init, a_guess, timesteps, system; integrator=rollout_integrator)
+        @assert !isnothing(system) "System must be provided if u_guess is provided."
+        Ũ⃗_traj = unitary_rollout(Ũ⃗_init, u_guess, timesteps, system; integrator=rollout_integrator)
     end
     
     return initialize_trajectory(
@@ -413,7 +559,7 @@ function initialize_trajectory(
         N,
         Δt,
         args...;
-        a_guess=a_guess,
+        u_guess=u_guess,
         kwargs...
     )
 end
@@ -421,9 +567,45 @@ end
 
 
 """
-    initialize_trajectory
+    initialize_trajectory(
+        ψ_goals::AbstractVector{<:AbstractVector{ComplexF64}},
+        ψ_inits::AbstractVector{<:AbstractVector{ComplexF64}},
+        N::Int,
+        Δt::Union{Real, AbstractVector{<:Real}},
+        n_drives::Int,
+        control_bounds::Tuple{Vararg{VectorBound}};
+        kwargs...
+    )
 
-Trajectory initialization of quantum states.
+Initialize a trajectory for quantum state transfer problems.
+
+Constructs a trajectory that evolves one or more quantum states from initial states to target
+states. Supports multiple simultaneous state trajectories with shared controls.
+
+# Arguments
+- `ψ_goals::AbstractVector{<:AbstractVector{ComplexF64}}`: Target quantum state(s)
+- `ψ_inits::AbstractVector{<:AbstractVector{ComplexF64}}`: Initial quantum state(s)
+- `N::Int`: Number of time steps
+- `Δt::Union{Real, AbstractVector{<:Real}}`: Time step size(s)
+- `n_drives::Int`: Number of control drives
+- `control_bounds::Tuple{Vararg{VectorBound}}`: Bounds for controls and their derivatives
+
+# Keyword Arguments
+- `state_name::Symbol=:ψ̃`: Base name for state variables (iso representation)
+- `state_names::AbstractVector{<:Symbol}`: Explicit names for each state (auto-generated if not provided)
+- `u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing`: Initial guess for controls
+- `system::Union{AbstractQuantumSystem, Nothing}=nothing`: Quantum system for rollout
+- `rollout_integrator::Function=expv`: Integrator for state dynamics
+- Additional kwargs passed to the base `initialize_trajectory` method
+
+# Returns
+- `NamedTrajectory`: Initialized trajectory with quantum states, controls, and timesteps
+
+# Notes
+- States are stored in iso representation (real-valued vectors) for optimization
+- If `u_guess` is provided, trajectories are computed via rollout
+- If `u_guess` is `nothing`, states are linearly interpolated
+- Multiple states share the same control trajectory
 """
 function initialize_trajectory(
     ψ_goals::AbstractVector{<:AbstractVector{ComplexF64}},
@@ -435,7 +617,7 @@ function initialize_trajectory(
     state_names::AbstractVector{<:Symbol}=length(ψ_goals) == 1 ?
         [state_name] :
         [Symbol(string(state_name) * "$i") for i = 1:length(ψ_goals)],
-    a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
+    u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
     system::Union{AbstractQuantumSystem, Nothing}=nothing,
     rollout_integrator::Function=expv,
     kwargs...
@@ -457,7 +639,7 @@ function initialize_trajectory(
 
     # Construct state data
     ψ̃_trajs = Matrix{Float64}[]
-    if isnothing(a_guess)
+    if isnothing(u_guess)
         for (ψ̃_init, ψ̃_goal) ∈ zip(ψ̃_inits, ψ̃_goals)
             ψ̃_traj = linear_interpolation(ψ̃_init, ψ̃_goal, N)
             push!(ψ̃_trajs, ψ̃_traj)
@@ -467,7 +649,7 @@ function initialize_trajectory(
         end
     else
         for ψ̃_init ∈ ψ̃_inits
-            ψ̃_traj = rollout(ψ̃_init, a_guess, timesteps, system; integrator=rollout_integrator)
+            ψ̃_traj = rollout(ψ̃_init, u_guess, timesteps, system; integrator=rollout_integrator)
             push!(ψ̃_trajs, ψ̃_traj)
         end
     end
@@ -480,15 +662,53 @@ function initialize_trajectory(
         N,
         Δt,
         args...;
-        a_guess=a_guess,
+        u_guess=u_guess,
         kwargs...
     )
 end
 
 """
-    initialize_trajectory
+    initialize_trajectory(
+        ρ_init,
+        ρ_goal,
+        N::Int,
+        Δt::Union{Real, AbstractVecOrMat{<:Real}},
+        args...;
+        state_name::Symbol=:ρ⃗̃,
+        u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
+        system::Union{OpenQuantumSystem, Nothing}=nothing,
+        rollout_integrator::Function=expv,
+        kwargs...
+    )
 
-Trajectory initialization of density matrices.
+Initialize a trajectory for open quantum system density matrix evolution.
+
+Constructs a trajectory for evolving a density matrix from an initial state to a target
+state, supporting both unitary and open system dynamics. Density matrices are stored in
+iso-vectorized form for optimization.
+
+# Arguments
+- `ρ_init`: Initial density matrix
+- `ρ_goal`: Target density matrix
+- `N::Int`: Number of time steps
+- `Δt::Union{Real, AbstractVecOrMat{<:Real}}`: Time step size(s)
+- `args...`: Additional arguments passed to base `initialize_trajectory`
+
+# Keyword Arguments
+- `state_name::Symbol=:ρ⃗̃`: Name for the density matrix state variable
+- `u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing`: Initial control guess
+- `system::Union{OpenQuantumSystem, Nothing}=nothing`: Open quantum system for rollout
+- `rollout_integrator::Function=expv`: Integrator for open system dynamics
+- Additional kwargs passed to the base `initialize_trajectory` method
+
+# Returns
+- `NamedTrajectory`: Initialized trajectory with density matrix state, controls, and timesteps
+
+# Notes
+- Density matrices are stored in iso-vectorized representation
+- If `u_guess` is provided, requires `system` and uses rollout for state trajectory
+- If `u_guess` is `nothing`, uses linear interpolation between initial and target states
+- Uses `open_rollout` for open system dynamics with Lindblad master equation
 """
 function initialize_trajectory(
     ρ_init,
@@ -497,7 +717,7 @@ function initialize_trajectory(
     Δt::Union{Real, AbstractVecOrMat{<:Real}},
     args...;
     state_name::Symbol=:ρ⃗̃,
-    a_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
+    u_guess::Union{AbstractMatrix{<:Float64}, Nothing}=nothing,
     system::Union{OpenQuantumSystem, Nothing}=nothing,
     rollout_integrator::Function=expv,
     kwargs...
@@ -516,14 +736,14 @@ function initialize_trajectory(
     ρ⃗̃_goal = density_to_iso_vec(ρ_goal)
 
     # Construct state data
-    if isnothing(a_guess)
+    if isnothing(u_guess)
         ρ⃗̃_traj = linear_interpolation(ρ_init, ρ_goal, N)
     else
-        @assert !isnothing(system) "System must be provided if a_guess is provided."
+        @assert !isnothing(system) "System must be provided if u_guess is provided."
 
         ρ⃗̃_traj = open_rollout(
             ρ_init,
-            a_guess,
+            u_guess,
             timesteps,
             system;
             integrator=rollout_integrator
@@ -538,7 +758,7 @@ function initialize_trajectory(
         N,
         Δt,
         args...;
-        a_guess=a_guess,
+        u_guess=u_guess,
         kwargs...
     )
 end
