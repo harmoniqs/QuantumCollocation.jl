@@ -83,7 +83,7 @@ This program contains Ipopt, a library for large-scale nonlinear optimization.
          For more information visit https://github.com/coin-or/Ipopt
 ******************************************************************************
 
-This is Ipopt version 3.14.17, running with linear solver MUMPS 5.8.0.
+This is Ipopt version 3.14.19, running with linear solver MUMPS 5.8.1.
 
 Number of nonzeros in equality constraint Jacobian...:   130578
 Number of nonzeros in inequality constraint Jacobian.:        0
@@ -175,7 +175,7 @@ Number of inequality constraint evaluations          = 0
 Number of equality constraint Jacobian evaluations   = 51
 Number of inequality constraint Jacobian evaluations = 0
 Number of Lagrangian Hessian evaluations             = 50
-Total seconds in IPOPT                               = 441.304
+Total seconds in IPOPT                               = 493.240
 
 EXIT: Maximum Number of Iterations Exceeded.</code></pre><p>Let&#39;s look at the fidelity in the subspace</p><pre><code class="language-julia hljs">fid = unitary_rollout_fidelity(prob.trajectory, sys; subspace=op.subspace)
 println(&quot;Fidelity: &quot;, fid)
@@ -207,7 +207,7 @@ solve!(prob_leakage; max_iter=250)</code></pre><pre class="documenter-example-ou
         applying constraint: bounds on da
         applying constraint: bounds on dda
         applying constraint: bounds on Δt
-This is Ipopt version 3.14.17, running with linear solver MUMPS 5.8.0.
+This is Ipopt version 3.14.19, running with linear solver MUMPS 5.8.1.
 
 Number of nonzeros in equality constraint Jacobian...:   130578
 Number of nonzeros in inequality constraint Jacobian.:    58800
@@ -519,8 +519,8 @@ Number of inequality constraint evaluations          = 298
 Number of equality constraint Jacobian evaluations   = 251
 Number of inequality constraint Jacobian evaluations = 251
 Number of Lagrangian Hessian evaluations             = 250
-Total seconds in IPOPT                               = 2345.067
+Total seconds in IPOPT                               = 2758.467
 
 EXIT: Maximum Number of Iterations Exceeded.</code></pre><p>Let&#39;s look at the fidelity in the subspace</p><pre><code class="language-julia hljs">fid_leakage = unitary_rollout_fidelity(prob_leakage.trajectory, sys; subspace=op.subspace)
 println(&quot;Fidelity: &quot;, fid_leakage)
-@assert fid_leakage &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fidelity: 0.9999830241360017</code></pre><p>and plot the result using the <code>plot_unitary_populations</code> function.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob_leakage.trajectory; fig_size=(900, 700))</code></pre><img src="91b317cc.png" alt="Example block output"/><p>Here we can see that the leakage populations have been driven substantially down.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../two_qubit_gates/">« Two Qubit Gates</a><a class="docs-footer-nextpage" href="../../../lib/">Library »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.14.1 on <span class="colophon-date" title="Wednesday 13 August 2025 16:19">Wednesday 13 August 2025</span>. Using Julia version 1.11.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+@assert fid_leakage &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fidelity: 0.9999830241360017</code></pre><p>and plot the result using the <code>plot_unitary_populations</code> function.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob_leakage.trajectory; fig_size=(900, 700))</code></pre><img src="91b317cc.png" alt="Example block output"/><p>Here we can see that the leakage populations have been driven substantially down.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../two_qubit_gates/">« Two Qubit Gates</a><a class="docs-footer-nextpage" href="../../../lib/">Library »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Wednesday 29 October 2025 07:07">Wednesday 29 October 2025</span>. Using Julia version 1.12.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
