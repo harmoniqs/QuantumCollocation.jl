@@ -32,8 +32,6 @@ Constructs a unitary variational problem for optimizing quantum control trajecto
 - `control_name::Symbol = :u`: The name of the control variable.
 - `timestep_name::Symbol = :Δt`: The name of the timestep variable.
 - `init_trajectory::Union{NamedTrajectory, Nothing}=nothing`: An optional initial trajectory to start optimization.
-- `u_bound::Float64=1.0`: The bound for the control variable `u`.
-- `u_bounds=fill(u_bound, system.n_drives)`: Bounds for each control variable.
 - `du_bound::Float64=Inf`: The bound for the derivative of the control variable.
 - `du_bounds=fill(du_bound, system.n_drives)`: Bounds for each derivative of the control variable.
 - `ddu_bound::Float64=1.0`: The bound for the second derivative of the control variable.
@@ -78,8 +76,6 @@ function UnitaryVariationalProblem(
     control_name::Symbol = :u,
     timestep_name::Symbol = :Δt,
     init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
-    u_bound::Float64=1.0,
-    u_bounds=fill(u_bound, system.n_drives),
     du_bound::Float64=Inf,
     du_bounds=fill(du_bound, system.n_drives),
     ddu_bound::Float64=1.0,
@@ -112,6 +108,10 @@ function UnitaryVariationalProblem(
     if !isnothing(init_trajectory)
         traj = deepcopy(init_trajectory)
     else
+        u_bounds = (
+            [system.drive_bounds[j][1] for j in 1:length(system.drive_bounds)], 
+            [system.drive_bounds[j][2] for j in 1:length(system.drive_bounds)]
+        )
         traj = initialize_trajectory(
             goal,
             T,

@@ -19,8 +19,6 @@ Construct a quantum state sampling problem for multiple systems with shared cont
 - `state_name::Symbol=:ψ̃`: The name of the state variable.
 - `control_name::Symbol=:u`: The name of the control variable.
 - `timestep_name::Symbol=:Δt`: The name of the timestep variable.
-- `u_bound::Float64=1.0`: The bound for the control amplitudes.
-- `u_bounds=fill(u_bound, systems[1].n_drives)`: The bounds for the control amplitudes.
 - `u_guess::Union{Matrix{Float64},Nothing}=nothing`: The initial guess for the control amplitudes.
 - `du_bound::Float64=Inf`: The bound for the control first derivatives.
 - `du_bounds=fill(du_bound, systems[1].n_drives)`: The bounds for the control first derivatives.
@@ -51,8 +49,6 @@ function QuantumStateSamplingProblem(
     state_name::Symbol=:ψ̃,
     control_name::Symbol=:u,
     timestep_name::Symbol=:Δt,
-    u_bound::Float64=1.0,
-    u_bounds=fill(u_bound, systems[1].n_drives),
     u_guess::Union{Matrix{Float64},Nothing}=nothing,
     du_bound::Float64=Inf,
     du_bounds=fill(du_bound, systems[1].n_drives),
@@ -87,6 +83,10 @@ function QuantumStateSamplingProblem(
     if !isnothing(init_trajectory)
         traj = init_trajectory
     else
+        u_bounds = (
+            [systems[1].drive_bounds[j][1] for j in 1:length(systems[1].drive_bounds)], 
+            [systems[1].drive_bounds[j][2] for j in 1:length(systems[1].drive_bounds)]
+        )
         trajs = map(zip(systems, state_names, ψ_inits, ψ_goals)) do (sys, names, ψis, ψgs)
             initialize_trajectory(
                 ψis,

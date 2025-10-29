@@ -33,8 +33,6 @@ with
 - `control_name::Symbol=:u`: The name of the control variable.
 - `timestep_name::Symbol=:Δt`: The name of the timestep variable.
 - `init_trajectory::Union{NamedTrajectory, Nothing}=nothing`: The initial trajectory.
-- `u_bound::Float64=1.0`: The bound on the control pulse.
-- `u_bounds=fill(u_bound, sys.n_drives)`: The bounds on the control pulse.
 - `u_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing`: The initial guess for the control pulse.
 - `du_bound::Float64=Inf`: The bound on the first derivative of the control pulse.
 - `du_bounds=fill(du_bound, sys.n_drives)`: The bounds on the first derivative of the control pulse.
@@ -65,8 +63,6 @@ function QuantumStateSmoothPulseProblem(
     control_name::Symbol=:u,
     timestep_name::Symbol=:Δt,
     init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
-    u_bound::Float64=1.0,
-    u_bounds=fill(u_bound, sys.n_drives),
     u_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing,
     du_bound::Float64=Inf,
     du_bounds=fill(du_bound, sys.n_drives),
@@ -95,6 +91,10 @@ function QuantumStateSmoothPulseProblem(
     if !isnothing(init_trajectory)
         traj = init_trajectory
     else
+        u_bounds = (
+            [sys.drive_bounds[j][1] for j in 1:length(sys.drive_bounds)], 
+            [sys.drive_bounds[j][2] for j in 1:length(sys.drive_bounds)]
+        )
         traj = initialize_trajectory(
             ψ_goals,
             ψ_inits,
