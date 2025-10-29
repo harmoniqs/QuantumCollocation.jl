@@ -35,9 +35,8 @@ using CairoMakie
 
 ## define the time parameters
 
+N = 50      # number of time steps
 T₀ = 10     # total time in ns
-T = 50      # number of time steps
-Δt = T₀ / T # time step
 
 ## define the system parameters
 levels = 5
@@ -75,7 +74,7 @@ get_subspace_identity(op) |> sparse
 # We can then pass this embedded operator to the `UnitarySmoothPulseProblem` template to create the problem
 
 ## create the problem
-prob = UnitarySmoothPulseProblem(sys, op, T, Δt; u_bound=u_bound)
+prob = UnitarySmoothPulseProblem(sys, op, N; u_bound=u_bound)
 
 ## solve the problem
 solve!(prob; max_iter=50)
@@ -97,7 +96,7 @@ plot_unitary_populations(prob.trajectory; fig_size=(900, 700))
 
 ## create the a leakage suppression problem, initializing with the previous solution
 
-prob_leakage = UnitarySmoothPulseProblem(sys, op, T, Δt;
+prob_leakage = UnitarySmoothPulseProblem(sys, op, N;
     u_bound=u_bound,
     u_guess=prob.trajectory.u[:, :],
     piccolo_options=PiccoloOptions(
