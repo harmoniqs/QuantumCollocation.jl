@@ -72,12 +72,11 @@ H_drives .*= 2π
 
 ## Define the time parameters
 T = 100 # timesteps
-duration = 100 # μs
-Δt = duration / T
-Δt_max = 400 / T
+T_max = 400 # μs (maximum duration)
+drive_bounds = fill((-u_bound, u_bound), length(H_drives))
 
 ## Define the system
-sys = QuantumSystem(H_drift, H_drives)
+sys = QuantumSystem(H_drift, H_drives, T_max, drive_bounds)
 
 # ## SWAP gate
 
@@ -92,15 +91,13 @@ U_goal = [
 ## Set up the problem
 prob = UnitarySmoothPulseProblem(
     sys,
-    U_goal,
-    T,
-    Δt;
+    EmbeddedOperator(U_goal, sys),
+    T;
     u_bound=u_bound,
     du_bound=du_bound,
     ddu_bound=ddu_bound,
     R_du=0.01,
     R_ddu=0.01,
-    Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
 fid_init = unitary_rollout_fidelity(prob.trajectory, sys)
@@ -163,15 +160,13 @@ U_goal = exp(im * π/4 * σx_1 * σx_2)
 
 prob = UnitarySmoothPulseProblem(
     sys,
-    U_goal,
-    T,
-    Δt;
+    EmbeddedOperator(U_goal, sys),
+    T;
     u_bound=u_bound,
     du_bound=du_bound,
     ddu_bound=ddu_bound,
     R_du=0.01,
     R_ddu=0.01,
-    Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
 fid_init = unitary_rollout_fidelity(prob.trajectory, sys)
