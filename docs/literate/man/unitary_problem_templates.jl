@@ -112,6 +112,6 @@ H_var = PAULIS.X
 varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], 10.0, [1.0, 1.0]);
 
 # _create a variational problem that is robust to `PAULIS.X` at the end_
-robprob = UnitaryVariationalProblem(varsys, U_goal, T, robust_times=[[T]]);
+robprob = UnitaryVariationalProblem(varsys, U_goal, T, robust_times=[[N]]);
 
 # -----

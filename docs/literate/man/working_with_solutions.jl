@@ -59,7 +59,7 @@ u_drive_1 = u[1, :]   # First drive over time
 
 # The unitary is stored in "isovec" format (vectorized). To get the actual unitary matrix at timestep k:
 using LinearAlgebra
-k = T  # Final timestep
+k = N  # Final timestep
 U_k = iso_vec_to_operator(Ũ⃗[:, k])
 println("Final unitary dimensions: ", size(U_k))
 
