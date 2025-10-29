@@ -74,7 +74,7 @@ get_subspace_identity(op) |> sparse
 # We can then pass this embedded operator to the `UnitarySmoothPulseProblem` template to create the problem
 
 ## create the problem
-prob = UnitarySmoothPulseProblem(sys, op, N; u_bound=u_bound)
+prob = UnitarySmoothPulseProblem(sys, op, N)
 
 ## solve the problem
 solve!(prob; max_iter=50)
@@ -97,7 +97,6 @@ plot_unitary_populations(prob.trajectory; fig_size=(900, 700))
 ## create the a leakage suppression problem, initializing with the previous solution
 
 prob_leakage = UnitarySmoothPulseProblem(sys, op, N;
-    u_bound=u_bound,
     u_guess=prob.trajectory.u[:, :],
     piccolo_options=PiccoloOptions(
         leakage_constraint=true,

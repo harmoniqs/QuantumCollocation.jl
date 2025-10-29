@@ -72,7 +72,7 @@ H_drives .*= 2π
 
 ## Define the time parameters
 N = 100 # timesteps
-T_max = 400 # μs (maximum duration)
+T_max = 400.0 # μs (maximum duration)
 drive_bounds = fill((-u_bound, u_bound), length(H_drives))
 
 ## Define the system
@@ -93,7 +93,6 @@ prob = UnitarySmoothPulseProblem(
     sys,
     EmbeddedOperator(U_goal, sys),
     N;
-    u_bound=u_bound,
     du_bound=du_bound,
     ddu_bound=ddu_bound,
     R_du=0.01,
@@ -162,7 +161,6 @@ prob = UnitarySmoothPulseProblem(
     sys,
     EmbeddedOperator(U_goal, sys),
     N;
-    u_bound=u_bound,
     du_bound=du_bound,
     ddu_bound=ddu_bound,
     R_du=0.01,
