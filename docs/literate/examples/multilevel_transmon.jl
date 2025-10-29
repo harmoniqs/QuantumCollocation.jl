@@ -36,7 +36,7 @@ using CairoMakie
 ## define the time parameters
 
 N = 50      # number of time steps
-T₀ = 10     # total time in ns
+T₀ = 10.0     # total time in ns
 
 ## define the system parameters
 levels = 5
@@ -46,10 +46,7 @@ levels = 5
 u_bound = 0.2
 
 ## create the system
-sys = TransmonSystem(levels=levels, δ=δ)
-
-## let's look at the parameters of the system
-sys.params
+sys = TransmonSystem(levels=levels, δ=δ, T_max=T₀, drive_bounds=fill(u_bound, 2))
 
 
 # Since this is a multilevel transmon and we want to implement an, let's say, $X$ gate on the qubit subspace, i.e., the first two levels we can utilize the `EmbeddedOperator` type to define the target operator.
@@ -107,7 +104,7 @@ prob_leakage = UnitarySmoothPulseProblem(sys, op, N;
 
 ## solve the problem
 
-solve!(prob_leakage; max_iter=250)
+solve!(prob_leakage; max_iter=250, options=IpoptOptions(eval_hessian=false))
 
 # Let's look at the fidelity in the subspace
 

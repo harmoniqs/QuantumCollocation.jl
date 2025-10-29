@@ -103,7 +103,7 @@ fid_init = unitary_rollout_fidelity(prob.trajectory, sys)
 println(fid_init)
 
 # Solve the problem
-solve!(prob; max_iter=100)
+solve!(prob; max_iter=100, options=IpoptOptions(eval_hessian=false))
 
 ## Let's take a look at the final fidelity
 fid_final = unitary_rollout_fidelity(prob.trajectory, sys)
