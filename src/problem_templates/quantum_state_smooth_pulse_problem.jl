@@ -27,25 +27,27 @@ with
 
 
 # Keyword Arguments
+- `ket_integrator=KetIntegrator`: the integrator to use for state dynamics
+- `time_dependent_integrator=false`: whether to use time-dependent integrator
 - `state_name::Symbol=:ψ̃`: The name of the state variable.
 - `control_name::Symbol=:a`: The name of the control variable.
 - `timestep_name::Symbol=:Δt`: The name of the timestep variable.
 - `init_trajectory::Union{NamedTrajectory, Nothing}=nothing`: The initial trajectory.
 - `a_bound::Float64=1.0`: The bound on the control pulse.
-- `a_bounds=fill(a_bound, length(system.G_drives))`: The bounds on the control pulse.
-- `a_guess::Union{Matrix{Float64}, Nothing}=nothing`: The initial guess for the control pulse.
+- `a_bounds=fill(a_bound, sys.n_drives)`: The bounds on the control pulse.
+- `a_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing`: The initial guess for the control pulse.
 - `da_bound::Float64=Inf`: The bound on the first derivative of the control pulse.
-- `da_bounds=fill(da_bound, length(system.G_drives))`: The bounds on the first derivative of the control pulse.
+- `da_bounds=fill(da_bound, sys.n_drives)`: The bounds on the first derivative of the control pulse.
 - `dda_bound::Float64=1.0`: The bound on the second derivative of the control pulse.
-- `dda_bounds=fill(dda_bound, length(system.G_drives))`: The bounds on the second derivative of the control pulse.
-- `Δt_min::Float64=0.5 * Δt`: The minimum timestep size.
-- `Δt_max::Float64=1.5 * Δt`: The maximum timestep size.
-- `drive_derivative_σ::Float64=0.01`: The standard deviation of the drive derivative random initialization.
+- `dda_bounds=fill(dda_bound, sys.n_drives)`: The bounds on the second derivative of the control pulse.
+- `Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt)`: The minimum timestep size.
+- `Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt)`: The maximum timestep size.
 - `Q::Float64=100.0`: The weight on the state objective.
 - `R=1e-2`: The weight on the control pulse and its derivatives.
 - `R_a::Union{Float64, Vector{Float64}}=R`: The weight on the control pulse.
 - `R_da::Union{Float64, Vector{Float64}}=R`: The weight on the first derivative of the control pulse.
 - `R_dda::Union{Float64, Vector{Float64}}=R`: The weight on the second derivative of the control pulse.
+- `state_leakage_indices::Union{Nothing, AbstractVector{Int}}=nothing`: Indices of leakage states.
 - `constraints::Vector{<:AbstractConstraint}=AbstractConstraint[]`: The constraints.
 - `piccolo_options::PiccoloOptions=PiccoloOptions()`: The Piccolo options.
 """
@@ -70,8 +72,8 @@ function QuantumStateSmoothPulseProblem(
     da_bounds=fill(da_bound, sys.n_drives),
     dda_bound::Float64=1.0,
     dda_bounds=fill(dda_bound, sys.n_drives),
-    Δt_min::Float64=0.5 * minimum(Δt),
-    Δt_max::Float64=2.0 * maximum(Δt),
+    Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt),
+    Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt),
     Q::Float64=100.0,
     R=1e-2,
     R_a::Union{Float64, Vector{Float64}}=R,

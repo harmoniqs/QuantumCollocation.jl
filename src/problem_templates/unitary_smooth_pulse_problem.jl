@@ -38,29 +38,27 @@ or
 with
 - `goal::AbstractPiccoloOperator`: the target unitary, either in the form of an `EmbeddedOperator` or a `Matrix{ComplexF64}
 - `N::Int`: the number of knot points
-- `Δt::Float64`: the (initial) time step size
 
 # Keyword Arguments
-- `piccolo_options::PiccoloOptions=PiccoloOptions()`: the options for the Piccolo solver
-- `state_name::Symbol = :Ũ⃗`: the name of the state
+- `unitary_integrator=UnitaryIntegrator`: the integrator to use for unitary dynamics
+- `state_name::Symbol = :Ũ⃗`: the name of the state
 - `control_name::Symbol = :a`: the name of the control
 - `timestep_name::Symbol = :Δt`: the name of the timestep
 - `init_trajectory::Union{NamedTrajectory, Nothing}=nothing`: an initial trajectory to use
 - `a_guess::Union{Matrix{Float64}, Nothing}=nothing`: an initial guess for the control pulses
-- `a_bound::Float64=1.0`: the bound on the control pulse
-- `a_bounds=fill(a_bound, length(system.G_drives))`: the bounds on the control pulses, one for each drive
 - `da_bound::Float64=Inf`: the bound on the control pulse derivative
-- `da_bounds=fill(da_bound, length(system.G_drives))`: the bounds on the control pulse derivatives, one for each drive
+- `da_bounds=fill(da_bound, system.n_drives)`: the bounds on the control pulse derivatives, one for each drive
 - `dda_bound::Float64=1.0`: the bound on the control pulse second derivative
-- `dda_bounds=fill(dda_bound, length(system.G_drives))`: the bounds on the control pulse second derivatives, one for each drive
-- `Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * mean(Δt)`: the minimum time step size
-- `Δt_max::Float64=Δt isa Float64 ? 1.5 * Δt : 1.5 * mean(Δt)`: the maximum time step size
+- `dda_bounds=fill(dda_bound, system.n_drives)`: the bounds on the control pulse second derivatives, one for each drive
+- `Δt_min::Float64=0.5 * system.T_max / N`: the minimum time step size
+- `Δt_max::Float64=2.0 * system.T_max / N`: the maximum time step size
 - `Q::Float64=100.0`: the weight on the infidelity objective
 - `R=1e-2`: the weight on the regularization terms
 - `R_a::Union{Float64, Vector{Float64}}=R`: the weight on the regularization term for the control pulses
 - `R_da::Union{Float64, Vector{Float64}}=R`: the weight on the regularization term for the control pulse derivatives
 - `R_dda::Union{Float64, Vector{Float64}}=R`: the weight on the regularization term for the control pulse second derivatives
 - `constraints::Vector{<:AbstractConstraint}=AbstractConstraint[]`: the constraints to enforce
+- `piccolo_options::PiccoloOptions=PiccoloOptions()`: the options for the Piccolo solver
 
 """
 function UnitarySmoothPulseProblem end
@@ -79,8 +77,8 @@ function UnitarySmoothPulseProblem(
     da_bounds=fill(da_bound, system.n_drives),
     dda_bound::Float64=1.0,
     dda_bounds=fill(dda_bound, system.n_drives),
-    Δt_min::Float64=0.5 * minimum(Δt),
-    Δt_max::Float64=2.0 * maximum(Δt),
+    Δt_min::Float64=0.5 * system.T_max / N,
+    Δt_max::Float64=2.0 * system.T_max / N,
     Q::Float64=100.0,
     R=1e-2,
     R_a::Union{Float64, Vector{Float64}}=R,

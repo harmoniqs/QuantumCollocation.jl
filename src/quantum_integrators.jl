@@ -23,7 +23,8 @@ function KetIntegrator(
     ψ̃::Symbol, 
     u::Symbol 
 ) 
-    return BilinearIntegrator(sys.G, traj, ψ̃, u)
+    Ĝ = u_ -> sys.G(u_, 0.0)
+    return BilinearIntegrator(Ĝ, traj, ψ̃, u)
 end
 
 function UnitaryIntegrator(
