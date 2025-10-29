@@ -11,6 +11,7 @@ pages = [
         "PiccoloOptions Reference" => "generated/man/piccolo_options.md",
     ],
     "Examples" => [
+        "Single Qubit Gate" => "generated/examples/single_qubit_gate.md",
         "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
         "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
     ],
