@@ -31,7 +31,7 @@ prob = UnitarySmoothPulseProblem(system, U_goal, T, Δt);
 println("Before: ", unitary_rollout_fidelity(prob.trajectory, system))
 
 # _finding an optimal control is as simple as calling `solve!`_
-solve!(prob, max_iter=100, verbose=true, print_level=1);
+solve!(prob, max_iter=100);
 
 # _check the fidelity after solving_
 println("After: ", unitary_rollout_fidelity(prob.trajectory, system))
@@ -63,7 +63,7 @@ min_prob = UnitaryMinimumTimeProblem(prob, U_goal);
 println("Duration before: ", get_duration(prob.trajectory))
 
 # _solve the minimum time problem_
-solve!(min_prob, max_iter=100, verbose=true, print_level=1);
+solve!(min_prob, max_iter=100);
 
 # _check the new duration_
 println("Duration after: ", get_duration(min_prob.trajectory))
@@ -85,7 +85,7 @@ This can be useful for exploring robustness, for example.
 =#
 
 # _create a sampling problem_
-driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y])
+driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
 sampling_prob = UnitarySamplingProblem([system, driftless_system], U_goal, T, Δt);
 
 # _new keys are addded to the trajectory for the new states_
@@ -110,7 +110,7 @@ for more details.
 
 # _create a variational system, with a variational Hamiltonian, `PAULIS.X`_
 H_var = PAULIS.X
-varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var]);
+varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], 10.0, [1.0, 1.0]);
 
 # _create a variational problem that is robust to `PAULIS.X` at the end_
 robprob = UnitaryVariationalProblem(varsys, U_goal, T, Δt, robust_times=[[T]]);

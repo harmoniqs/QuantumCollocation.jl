@@ -33,7 +33,7 @@ state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, T, Δt);
 println("Before: ", rollout_fidelity(state_prob.trajectory, system))
 
 # _solve the problem_
-solve!(state_prob, max_iter=100, verbose=true, print_level=1);
+solve!(state_prob, max_iter=100);
 
 # _check the fidelity after solving_
 println("After: ", rollout_fidelity(state_prob.trajectory, system))
@@ -58,7 +58,7 @@ min_state_prob = QuantumStateMinimumTimeProblem(state_prob, ψ_goal);
 println("Duration before: ", get_duration(state_prob.trajectory))
 
 # _solve the minimum time problem_
-solve!(min_state_prob, max_iter=100, verbose=true, print_level=1);
+solve!(min_state_prob, max_iter=100);
 
 # _check the new duration_
 println("Duration after: ", get_duration(min_state_prob.trajectory))
@@ -78,14 +78,14 @@ QuantumStateSamplingProblem
 =#
 
 # _create a sampling problem_
-driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y])
+driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
 sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, T, Δt);
 
 # _new keys are added to the trajectory for the new states_
 println(sampling_state_prob.trajectory.state_names)
 
 # _solve the sampling problem for a few iterations_
-solve!(sampling_state_prob, max_iter=25, verbose=true, print_level=1);
+solve!(sampling_state_prob, max_iter=25);
 
 # _check the fidelity of the sampling problem (use the updated key to get the initial and goal)_
 println("After (original system): ", rollout_fidelity(sampling_state_prob.trajectory, system, state_name=:ψ̃1_system_1))
