@@ -78,7 +78,7 @@ QuantumStateSamplingProblem
 
 # _create a sampling problem_
 driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
-sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, T);
+sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, N);
 
 # _new keys are added to the trajectory for the new states_
 println(sampling_state_prob.trajectory.state_names)

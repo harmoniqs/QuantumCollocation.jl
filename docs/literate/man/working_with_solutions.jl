@@ -41,7 +41,7 @@ solve!(prob;
 
 # Control pulses are stored in the trajectory with automatic naming:
 
-u = prob.trajectory.u       # Control amplitudes [n_drives × T]
+u = prob.trajectory.u       # Control values [n_drives × N]
 du = prob.trajectory.du     # First derivatives
 ddu = prob.trajectory.ddu   # Second derivatives
 
@@ -99,7 +99,7 @@ println("Rollout fidelity: ", fid_rollout)
 
 # When working with subspaces (e.g., qubit in transmon):
 # op = EmbeddedOperator(:X, system)
-# prob_embedded = UnitarySmoothPulseProblem(system, op, T, Δt)
+# prob_embedded = UnitarySmoothPulseProblem(system, op, N)
 # solve!(prob_embedded, max_iter=100)
 # 
 # # Evaluate fidelity only in computational subspace
@@ -119,10 +119,10 @@ println("Rollout fidelity: ", fid_rollout)
 
 # Check if solution satisfies all constraints:
 # - Dynamics constraints: Compare rollout vs direct fidelity
-# - Bound constraints: Verify |u| ≤ u_bound
+# - Bound constraints: Verify controls within system.drive_bounds
 # - Derivative constraints: Check |du|, |ddu| within bounds
 
-println("Max control amplitude: ", maximum(abs.(u)))
+println("Max control value: ", maximum(abs.(u)))
 println("Max control derivative: ", maximum(abs.(du)))
 
 # ## Saving and Loading
@@ -200,7 +200,7 @@ control_data = Dict(
 # **Debugging poor convergence:**
 # 1. Check `inf_pr` - high values indicate constraint violations
 # 2. Verify system Hamiltonian is correct
-# 3. Try looser bounds or larger `u_bound`
+# 3. Try looser derivative bounds (du_bound, ddu_bound)
 # 4. Increase regularization weights (`R_u`, `R_du`, `R_ddu`)
 # 5. Use `piccolo_options.bound_state=true` for better numerics
 

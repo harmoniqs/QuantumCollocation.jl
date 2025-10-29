@@ -58,12 +58,7 @@
 # prob = UnitarySmoothPulseProblem(
 #     system,           # QuantumSystem defining H(u)
 #     U_goal,           # Target unitary or state
-#     T,                # Number of timesteps
-#     Δt;               # Timestep duration (or initial guess for min-time)
-#     
-#     # Control bounds
-#     u_bound = 1.0,              # |u| ≤ u_bound
-#     u_bounds = [...],           # Per-drive bounds
+#     N,                # Number of timesteps
 #     
 #     # Derivative bounds (smoothness)
 #     du_bound = 0.01,            # |u̇| ≤ du_bound
