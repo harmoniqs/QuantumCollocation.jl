@@ -39,7 +39,7 @@ solve!(state_prob, max_iter=100, verbose=true, print_level=1);
 println("After: ", rollout_fidelity(state_prob.trajectory, system))
 
 # _extract the control pulses_
-state_prob.trajectory.a |> size
+state_prob.trajectory.u |> size
 
 # -----
 
