@@ -4,6 +4,7 @@ using PiccoloDocsTemplate
 pages = [
     "Home" => "index.md",
     "Manual" => [
+        "Problem Templates Overview" => "generated/man/problem_templates_overview.md",
         "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
         "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
     ],
