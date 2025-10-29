@@ -24,10 +24,9 @@ system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
 ψ_init = Vector{ComplexF64}([1.0, 0.0])
 ψ_goal = Vector{ComplexF64}([0.0, 1.0])
 T = 51
-Δt = 0.2
 
 # _create the smooth pulse problem_
-state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, T, Δt);
+state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, T);
 
 # _check the fidelity before solving_
 println("Before: ", rollout_fidelity(state_prob.trajectory, system))
@@ -79,7 +78,7 @@ QuantumStateSamplingProblem
 
 # _create a sampling problem_
 driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
-sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, T, Δt);
+sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, T);
 
 # _new keys are added to the trajectory for the new states_
 println(sampling_state_prob.trajectory.state_names)

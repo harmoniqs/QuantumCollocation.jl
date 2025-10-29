@@ -11,11 +11,10 @@ using NamedTrajectories
 # Once you've created a problem template, solving is straightforward with the `solve!` function:
 
 system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
-U_goal = GATES.H
+U_goal = EmbeddedOperator(GATES.H, system)
 T = 51
-Δt = 0.2
 
-prob = UnitarySmoothPulseProblem(system, U_goal, T, Δt)
+prob = UnitarySmoothPulseProblem(system, U_goal, T)
 
 # The `solve!` function accepts several key options:
 

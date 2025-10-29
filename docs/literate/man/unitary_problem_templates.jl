@@ -21,11 +21,10 @@ target unitary operator, `U_goal`.
 =#
 
 system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
-U_goal = GATES.H
+U_goal = EmbeddedOperator(GATES.H, system)
 T = 51
-Δt = 0.2
 
-prob = UnitarySmoothPulseProblem(system, U_goal, T, Δt); 
+prob = UnitarySmoothPulseProblem(system, U_goal, T); 
 
 # _check the fidelity before solving_
 println("Before: ", unitary_rollout_fidelity(prob.trajectory, system))
@@ -86,7 +85,7 @@ This can be useful for exploring robustness, for example.
 
 # _create a sampling problem_
 driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
-sampling_prob = UnitarySamplingProblem([system, driftless_system], U_goal, T, Δt);
+sampling_prob = UnitarySamplingProblem([system, driftless_system], U_goal, T);
 
 # _new keys are addded to the trajectory for the new states_
 println(sampling_prob.trajectory.state_names)
@@ -113,6 +112,6 @@ H_var = PAULIS.X
 varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], 10.0, [1.0, 1.0]);
 
 # _create a variational problem that is robust to `PAULIS.X` at the end_
-robprob = UnitaryVariationalProblem(varsys, U_goal, T, Δt, robust_times=[[T]]);
+robprob = UnitaryVariationalProblem(varsys, U_goal, T, robust_times=[[T]]);
 
 # -----
