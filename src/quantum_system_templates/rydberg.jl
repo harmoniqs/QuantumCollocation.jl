@@ -138,7 +138,7 @@ end
     @test sys isa QuantumSystem
     @test sys.levels == 8  # 2^3 for 3 atoms
     @test sys.n_drives == 3  # X, Y, and detuning
-    
+
     # Test with ignore_Y_drive
     sys2 = RydbergChainSystem(N=2, ignore_Y_drive=true)
     @test sys2 isa QuantumSystem

@@ -46,7 +46,7 @@ That's it! You've optimized control pulses for a quantum gate.
 ## What Can QuantumCollocation Do?
 
 - **Unitary gate optimization** - Find pulses to implement quantum gates
-- **State transfer** - Drive quantum states to target states  
+- **State transfer** - Drive quantum states to target states
 - **Minimum time control** - Optimize gate duration
 - **Robust control** - Account for system uncertainties
 - **Multilevel systems** - Handle transmons, bosonic codes, etc.
@@ -61,7 +61,7 @@ That's it! You've optimized control pulses for a quantum gate.
 \begin{aligned}
     \arg \min_{\mathbf{Z}}\quad & J(\mathbf{Z}) \\
     \text{s.t.}\qquad & \mathbf{f}(\mathbf{Z}) = 0 \\
-    & \mathbf{g}(\mathbf{Z}) \le 0  
+    & \mathbf{g}(\mathbf{Z}) \le 0
 \end{aligned}
 ```
 
@@ -82,7 +82,7 @@ Problem templates are organized by the type of quantum system being controlled:
 - [`UnitaryFreePhaseProblem`](@ref) - Optimize up to global phase
 - [`UnitaryVariationalProblem`](@ref) - Variational quantum optimization
 
-### Quantum State Templates  
+### Quantum State Templates
 - [`QuantumStateSmoothPulseProblem`](@ref) - Drive states with smooth pulses
 - [`QuantumStateMinimumTimeProblem`](@ref) - Minimize state transfer time
 - [`QuantumStateSamplingProblem`](@ref) - Robust state transfer
@@ -113,20 +113,13 @@ The dynamics between knot points $(U_k, u_k)$ and $(U_{k+1}, u_{k+1})$ become no
 
 - **Efficient gradients** - Sparse Jacobians and Hessians via automatic differentiation
 - **Flexible constraints** - Add custom physics, leakage suppression, robustness
-- **Multiple integrators** - Exponential, Pade, time-dependent dynamics  
+- **Multiple integrators** - Exponential, Pade, time-dependent dynamics
 - **Extensible** - Easy to add new objectives, constraints, and problem templates
 
 ## Next Steps
 
 - 📚 [Problem Templates Overview](@ref) - Choose the right template for your problem
-- 🎯 [Working with Solutions](@ref) - Extract results, evaluate fidelity, save data  
-- ⚙️ [PiccoloOptions Reference](@ref) - Configure solver options and constraints
-- 💡 [Examples](@ref) - See complete examples from single qubits to multilevel systems
-
-## Next Steps
-
-- 📚 [Problem Templates Overview](@ref) - Choose the right template for your problem
-- 🎯 [Working with Solutions](@ref) - Extract results, evaluate fidelity, save data  
+- 🎯 [Working with Solutions](@ref) - Extract results, evaluate fidelity, save data
 - ⚙️ [PiccoloOptions Reference](@ref) - Configure solver options and constraints
 - 💡 [Examples](@ref) - See complete examples from single qubits to multilevel systems
 
@@ -135,6 +128,8 @@ The dynamics between knot points $(U_k, u_k)$ and $(U_{k+1}, u_{k+1})$ become no
 QuantumCollocation.jl is part of the [Piccolo ecosystem](https://github.com/harmoniqs/Piccolo.jl):
 
 - [**NamedTrajectories.jl**](https://github.com/harmoniqs/NamedTrajectories.jl) - Trajectory data structures
-- [**DirectTrajOpt.jl**](https://github.com/harmoniqs/DirectTrajOpt.jl) - Direct trajectory optimization framework  
+- [**DirectTrajOpt.jl**](https://github.com/harmoniqs/DirectTrajOpt.jl) - Direct trajectory optimization framework
 - [**PiccoloQuantumObjects.jl**](https://github.com/harmoniqs/PiccoloQuantumObjects.jl) - Quantum operators and systems
 - [**PiccoloPlots.jl**](https://github.com/harmoniqs/PiccoloPlots.jl) - Visualization tools
+
+Problem templates give the user the ability to add other constraints and objective functions to this problem and solve it efficiently using [Ipopt.jl](https://github.com/jump-dev/Ipopt.jl) and [MathOptInterface.jl](https://github.com/jump-dev/MathOptInterface.jl) under the hood (support for additional backends coming soon!).
