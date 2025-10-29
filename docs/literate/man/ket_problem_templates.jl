@@ -20,7 +20,7 @@ intial state, `ψ_init`, to a target state, `ψ_goal`.
 =#
 
 # _define the quantum system_
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y])
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
 ψ_init = Vector{ComplexF64}([1.0, 0.0])
 ψ_goal = Vector{ComplexF64}([0.0, 1.0])
 T = 51
