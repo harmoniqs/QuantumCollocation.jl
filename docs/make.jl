@@ -7,6 +7,8 @@ pages = [
         "Problem Templates Overview" => "generated/man/problem_templates_overview.md",
         "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
         "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
+        "Working with Solutions" => "generated/man/working_with_solutions.md",
+        "PiccoloOptions Reference" => "generated/man/piccolo_options.md",
     ],
     "Examples" => [
         "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
