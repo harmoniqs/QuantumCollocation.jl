@@ -40,9 +40,9 @@ using CairoMakie
 ⊗(a, b) = kron(a, b)
 
 ## Define our operators
-σx = GATES[:X]
-σy = GATES[:Y]
-Id = GATES[:I]
+σx = GATES.X
+σy = GATES.Y
+Id = GATES.I
 
 ## Lift the operators to the two-qubit Hilbert space
 σx_1 = σx ⊗ Id
