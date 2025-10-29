@@ -14,6 +14,7 @@ pages = [
         "Single Qubit Gate" => "generated/examples/single_qubit_gate.md",
         "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
         "Minimum Time Optimization" => "generated/examples/minimum_time_problem.md",
+        "Robust Control" => "generated/examples/robust_control.md",
         "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
     ],
     "Library" => "lib.md",
