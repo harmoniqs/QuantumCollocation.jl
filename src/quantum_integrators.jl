@@ -4,6 +4,8 @@ export KetIntegrator
 export UnitaryIntegrator
 export DensityMatrixIntegrator
 export VariationalUnitaryIntegrator
+export TimeDependentKetIntegrator
+export TimeDependentUnitaryIntegrator
 
 using LinearAlgebra
 using NamedTrajectories
@@ -78,6 +80,31 @@ function VariationalUnitaryIntegrator(
         return Isomorphisms.var_G(I(sys.levels) ⊗ G0, Gs)
     end
     return BilinearIntegrator(Ĝ, traj, var_Ũ⃗, a)
+end
+
+# ----------------------------------------------------------------------------- #
+# Default Integrators
+# ----------------------------------------------------------------------------- #
+
+function TimeDependentKetIntegrator(
+    sys::TimeDependentQuantumSystem,
+    traj::NamedTrajectory, 
+    ψ̃::Symbol, 
+    a::Symbol ,
+    t::Symbol
+) 
+    return TimeDependentBilinearIntegrator(sys.G, traj, ψ̃, a, t)
+end
+
+function TimeDependentUnitaryIntegrator(
+    sys::TimeDependentQuantumSystem,
+    traj::NamedTrajectory, 
+    Ũ⃗::Symbol, 
+    a::Symbol,
+    t::Symbol
+) 
+    Ĝ = (a_, t_) -> I(sys.levels) ⊗ sys.G(a_,t_)
+    return TimeDependentBilinearIntegrator(Ĝ, traj, Ũ⃗, a, t)
 end
 
 
