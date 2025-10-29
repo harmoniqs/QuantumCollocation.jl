@@ -23,29 +23,32 @@ Constructs a unitary variational problem for optimizing quantum control trajecto
 
 # Keyword Arguments
 
-- `robust_times::AbstractVector`: Times at which robustness to variations in the trajectory is enforced.
-- `sensitive_times::AbstractVector`: Times at which sensitivity to variations in the trajectory is enhanced.
-- `unitary_integrator`: The integrator used for unitary evolution (default: `VariationalUnitaryIntegrator`).
-- `state_name::Symbol`: The name of the state variable in the trajectory (default: `:Ũ⃗`).
-- `variational_state_name::Symbol`: The name of the variational state variable (default: `:Ũ⃗ₐ`).
-- `variational_scales::AbstractVector`: Scaling factors for the variational state variables (default: `1.0`).
-- `control_name::Symbol`: The name of the control variable (default: `:a`).
-- `timestep_name::Symbol`: The name of the timestep variable (default: `:Δt`).
-- `init_trajectory::Union{NamedTrajectory, Nothing}`: An optional initial trajectory to start optimization.
-- `a_bound::Float64`: The bound for the control variable `a` (default: `1.0`).
-- `a_bounds`: Bounds for each control variable (default: filled with `a_bound`).
-- `da_bound::Float64`: The bound for the derivative of the control variable (default: `Inf`).
-- `da_bounds`: Bounds for each derivative of the control variable.
-- `dda_bound::Float64`: The bound for the second derivative of the control variable (default: `1.0`).
-- `dda_bounds`: Bounds for each second derivative of the control variable.
-- `Δt_min::Float64`: Minimum allowed timestep duration.
-- `Δt_max::Float64`: Maximum allowed timestep duration.
-- `Q::Float64`: Weight for the unitary infidelity objective (default: `100.0`).
-- `Q_v::Float64`: Weight for sensitivity objectives (default: `1.0`).
-- `R`: Regularization weight for control variables (default: `1e-2`).
-- `R_a`, `R_da`, `R_dda`: Regularization weights for control, its derivative, and second derivative.
-- `constraints::Vector`: Additional constraints for the optimization problem.
-- `piccolo_options::PiccoloOptions`: Options for configuring the Piccolo optimization framework.
+- `robust_times::AbstractVector{<:AbstractVector{Int}}=[Int[] for s ∈ system.G_vars]`: Times at which robustness to variations in the trajectory is enforced.
+- `sensitive_times::AbstractVector{<:AbstractVector{Int}}=[Int[] for s ∈ system.G_vars]`: Times at which sensitivity to variations in the trajectory is enhanced.
+- `variational_integrator=VariationalUnitaryIntegrator`: The integrator used for unitary evolution.
+- `variational_scales::AbstractVector{<:Float64}=fill(1.0, length(system.G_vars))`: Scaling factors for the variational state variables.
+- `state_name::Symbol = :Ũ⃗`: The name of the state variable in the trajectory.
+- `variational_state_name::Symbol = :Ũ⃗ᵥ`: The name of the variational state variable.
+- `control_name::Symbol = :a`: The name of the control variable.
+- `timestep_name::Symbol = :Δt`: The name of the timestep variable.
+- `init_trajectory::Union{NamedTrajectory, Nothing}=nothing`: An optional initial trajectory to start optimization.
+- `a_bound::Float64=1.0`: The bound for the control variable `a`.
+- `a_bounds=fill(a_bound, system.n_drives)`: Bounds for each control variable.
+- `da_bound::Float64=Inf`: The bound for the derivative of the control variable.
+- `da_bounds=fill(da_bound, system.n_drives)`: Bounds for each derivative of the control variable.
+- `dda_bound::Float64=1.0`: The bound for the second derivative of the control variable.
+- `dda_bounds=fill(dda_bound, system.n_drives)`: Bounds for each second derivative of the control variable.
+- `Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt)`: Minimum allowed timestep duration.
+- `Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt)`: Maximum allowed timestep duration.
+- `Q::Float64=100.0`: Weight for the unitary infidelity objective.
+- `Q_s::Float64=1e-2`: Weight for sensitivity objectives.
+- `Q_r::Float64=100.0`: Weight for robustness objectives.
+- `R=1e-2`: Regularization weight for control variables.
+- `R_a::Union{Float64, Vector{Float64}}=R`: Regularization weights for control.
+- `R_da::Union{Float64, Vector{Float64}}=R`: Regularization weights for control derivative.
+- `R_dda::Union{Float64, Vector{Float64}}=R`: Regularization weights for control second derivative.
+- `constraints::Vector{<:AbstractConstraint}=AbstractConstraint[]`: Additional constraints for the optimization problem.
+- `piccolo_options::PiccoloOptions=PiccoloOptions()`: Options for configuring the Piccolo optimization framework.
 
 # Returns
 
@@ -81,8 +84,8 @@ function UnitaryVariationalProblem(
     da_bounds=fill(da_bound, system.n_drives),
     dda_bound::Float64=1.0,
     dda_bounds=fill(dda_bound, system.n_drives),
-    Δt_min::Float64=0.5 * minimum(Δt),
-    Δt_max::Float64=2.0 * maximum(Δt),
+    Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt),
+    Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt),
     Q::Float64=100.0,
     Q_s::Float64=1e-2,
     Q_r::Float64=100.0,
