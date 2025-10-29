@@ -23,10 +23,10 @@ intial state, `ψ_init`, to a target state, `ψ_goal`.
 system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
 ψ_init = Vector{ComplexF64}([1.0, 0.0])
 ψ_goal = Vector{ComplexF64}([0.0, 1.0])
-T = 51
+N = 51
 
 # _create the smooth pulse problem_
-state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, T);
+state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, N);
 
 # _check the fidelity before solving_
 println("Before: ", rollout_fidelity(state_prob.trajectory, system))

@@ -20,10 +20,10 @@ opts_custom = PiccoloOptions(
 # Pass to any problem template:
 system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
 U_goal = EmbeddedOperator(GATES.H, system)
-T = 51
+N = 51
 
 prob = UnitarySmoothPulseProblem(
-    system, U_goal, T;
+    system, U_goal, N;
     piccolo_options = opts_custom
 )
 
