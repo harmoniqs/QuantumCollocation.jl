@@ -69,6 +69,8 @@ function RydbergChainSystem(;
     local_detune::Bool=false,
     all2all::Bool=true,
     ignore_Y_drive::Bool=false,
+    T_max::Float64=10.0,
+    drive_bounds::Union{Float64, Vector{<:Union{Tuple{Float64, Float64}, Float64}}}=ignore_Y_drive ? [1.0, 1.0] : [1.0, 1.0, 1.0],
 )
     PAULIS = (
         I = ComplexF64[1 0; 0 1],
@@ -117,7 +119,9 @@ function RydbergChainSystem(;
 
     return QuantumSystem(
         H_drift,
-        H_drives
+        H_drives,
+        T_max,
+        drive_bounds
     )
 end
 
@@ -126,5 +130,17 @@ end
 @testitem "Rydberg system test" begin
     using PiccoloQuantumObjects
 
-    @test RydbergChainSystem(N=3,cutoff_order=2,all2all=false) isa QuantumSystem
+    sys = RydbergChainSystem(N=3,cutoff_order=2,all2all=false)
+    @test sys isa QuantumSystem
+    @test sys.levels == 8 # 2^3 for 3 atoms
+    @test sys.n_drives == 3 # X, Y, detuning
+end
+
+@testitem "Rydberg system test: ignore Y drive" begin
+    using PiccoloQuantumObjects
+
+    sys = RydbergChainSystem(N=4,ignore_Y_drive=true)
+    @test sys isa QuantumSystem
+    @test sys.levels == 16 # 2^4 for 4 atoms
+    @test sys.n_drives == 2 # X, detuning
 end

@@ -19,11 +19,12 @@ const ⊗ = kron
 
 function KetIntegrator(
     sys::QuantumSystem,
-    traj::NamedTrajectory, 
-    ψ̃::Symbol, 
-    a::Symbol 
-) 
-    return BilinearIntegrator(sys.G, traj, ψ̃, a)
+    traj::NamedTrajectory,
+    ψ̃::Symbol,
+    a::Symbol
+)
+    Ĝ = u_ -> sys.G(u_, 0.0)
+    return BilinearIntegrator(Ĝ, traj, ψ̃, a)
 end
 
 function UnitaryIntegrator(
@@ -31,8 +32,8 @@ function UnitaryIntegrator(
     traj::NamedTrajectory, 
     Ũ⃗::Symbol, 
     a::Symbol
-) 
-    Ĝ = a_ -> I(sys.levels) ⊗ sys.G(a_)
+)
+    Ĝ = u_ -> I(sys.levels) ⊗ sys.G(u_, 0.0)
     return BilinearIntegrator(Ĝ, traj, Ũ⃗, a)
 end
 

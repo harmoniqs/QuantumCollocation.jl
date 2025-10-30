@@ -72,12 +72,19 @@ H_drives .*= 2π
 
 ## Define the time parameters
 T = 100 # timesteps
+T_max = 1.0 # max evolution time
+u_bounds = [
+    (-1.0, 1.0),
+    (-1.0, 1.0),
+    (-1.0, 1.0),
+    (-1.0, 1.0)
+]
 duration = 100 # μs
 Δt = duration / T
 Δt_max = 400 / T
 
 ## Define the system
-sys = QuantumSystem(H_drift, H_drives)
+sys = QuantumSystem(H_drift, H_drives, T_max, u_bounds)
 
 # ## SWAP gate
 

@@ -182,7 +182,7 @@ function QuantumStateSmoothPulseProblem(
     args...;
     kwargs...
 )
-    system = QuantumSystem(H_drift, H_drives)
+    system = QuantumSystem(H_drift, H_drives, T_max, u_bounds)
     return QuantumStateSmoothPulseProblem(system, args...; kwargs...)
 end
 
@@ -192,8 +192,10 @@ end
     using PiccoloQuantumObjects 
 
     T = 51
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
     
@@ -203,9 +205,9 @@ end
         sys, ψ_init, ψ_target, T, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
-    initial = rollout_fidelity(prob.trajectory, sys)
+    initial = rollout_fidelity(prob.trajectory, sys, control_name=:a)
     solve!(prob, max_iter=50, print_level=1, verbose=false)
-    final = rollout_fidelity(prob.trajectory, sys)
+    final = rollout_fidelity(prob.trajectory, sys, control_name=:a)
     @test final > initial
 end
 
@@ -213,8 +215,10 @@ end
     using PiccoloQuantumObjects 
 
     T = 50
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
     ψ_inits = Vector{ComplexF64}.([[1.0, 0.0], [0.0, 1.0]])
     ψ_targets = Vector{ComplexF64}.([[0.0, 1.0], [1.0, 0.0]])
 
@@ -222,9 +226,9 @@ end
         sys, ψ_inits, ψ_targets, T, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
-    initial = rollout_fidelity(prob.trajectory, sys)
+    initial = rollout_fidelity(prob.trajectory, sys, control_name=:a)
     solve!(prob, max_iter=50, print_level=1, verbose=false)
-    final = rollout_fidelity(prob.trajectory, sys)
+    final = rollout_fidelity(prob.trajectory, sys, control_name=:a)
     final, initial
     @test all(final .> initial)
 end

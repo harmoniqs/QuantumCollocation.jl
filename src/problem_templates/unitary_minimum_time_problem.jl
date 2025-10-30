@@ -158,18 +158,20 @@ end
     H_drives = [PAULIS[:X], PAULIS[:Y]]
     U_goal = GATES[:H]
     T = 51
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
 
-    sys = QuantumSystem(H_drift, H_drives)
+    sys = QuantumSystem(H_drift, H_drives, T_max, u_bounds)
 
     prob = UnitarySmoothPulseProblem(
         sys, U_goal, T, Δt, Δt_min=Δt * 0.01,
         piccolo_options=PiccoloOptions(verbose=false)
     )
 
-    before = unitary_rollout_fidelity(prob.trajectory, sys)
+    before = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
     solve!(prob; max_iter=150, verbose=false, print_level=1)
-    after = unitary_rollout_fidelity(prob.trajectory, sys)
+    after = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
     @test after > before
 
     # soft fidelity constraint
@@ -182,7 +184,7 @@ end
     # test fidelity has stayed above the constraint
     constraint_tol = 0.95
     final_fidelity = minimum([0.99, after])
-    @test unitary_rollout_fidelity(min_prob.trajectory, sys) ≥ constraint_tol * final_fidelity
+    @test unitary_rollout_fidelity(min_prob.trajectory, sys, drive_name=:a) ≥ constraint_tol * final_fidelity
     duration_after = sum(get_timesteps(min_prob.trajectory))
     duration_before = sum(get_timesteps(prob.trajectory))
     @test duration_after <= duration_before

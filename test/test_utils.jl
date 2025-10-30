@@ -104,8 +104,10 @@ end
 
 function smooth_quantum_state_problem(; return_system::Bool=false)
     T = 50
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
-    sys = QuantumSystem(0.1 * PAULIS[:Z], [PAULIS[:X], PAULIS[:Y]])
+    sys = QuantumSystem(0.1 * PAULIS[:Z], [PAULIS[:X], PAULIS[:Y]], T_max, u_bounds)
     ψ_init = ComplexF64[1.0, 0.0]
     ψ_target = ComplexF64[0.0, 1.0]
     prob = QuantumStateSmoothPulseProblem(
@@ -122,8 +124,10 @@ end
 
 function smooth_unitary_problem(; return_system::Bool=false)
     T = 50
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
-    sys = QuantumSystem(0.1 * PAULIS[:Z], [PAULIS[:X], PAULIS[:Y]])
+    sys = QuantumSystem(0.1 * PAULIS[:Z], [PAULIS[:X], PAULIS[:Y]], T_max, u_bounds)
     U_goal = GATES[:H]
     prob = UnitarySmoothPulseProblem(
         sys, U_goal, T, Δt;
