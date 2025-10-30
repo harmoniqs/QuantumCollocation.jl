@@ -4,6 +4,9 @@ export unitary_geodesic
 export linear_interpolation
 export unitary_linear_interpolation
 export initialize_trajectory
+export unitary_trajectory
+export ket_trajectory
+export density_trajectory
 
 using NamedTrajectories
 import NamedTrajectories.StructNamedTrajectory: ScalarBound, VectorBound
@@ -763,6 +766,330 @@ function initialize_trajectory(
     )
 end
 
+# ============================================================================= #
+#                        Convenience trajectory creators                        #
+# ============================================================================= #
+
+"""
+    unitary_trajectory(
+        sys::QuantumSystem,
+        U_goal::AbstractMatrix{<:Number},
+        N::Int;
+        U_init::AbstractMatrix{<:Number}=I(size(sys.H_drift, 1)),
+        Δt_min::Float64=sys.T_max / (2 * (N-1)),
+        Δt_max::Float64=2 * sys.T_max / (N-1),
+        free_time::Bool=true,
+        geodesic::Bool=true
+    )
+
+Create a unitary trajectory initialized from a quantum system.
+
+# Arguments
+- `sys::QuantumSystem`: The quantum system
+- `U_goal::AbstractMatrix`: Target unitary operator
+- `N::Int`: Number of knot points
+
+# Keyword Arguments
+- `U_init::AbstractMatrix`: Initial unitary (default: identity)
+- `Δt_min::Float64`: Minimum timestep (default: T_max / (2*(N-1)))
+- `Δt_max::Float64`: Maximum timestep (default: 2*T_max / (N-1))
+- `free_time::Bool`: Whether timesteps are free or fixed (default: true)
+- `geodesic::Bool`: Use geodesic interpolation (default: true)
+
+# Returns
+- `NamedTrajectory`: Initialized unitary trajectory
+"""
+function unitary_trajectory(
+    sys::QuantumSystem,
+    U_goal::AbstractMatrix{<:Number},
+    N::Int;
+    U_init::AbstractMatrix{<:Number}=Matrix{ComplexF64}(I(size(sys.H_drift, 1))),
+    Δt_min::Float64=sys.T_max / (2 * (N-1)),
+    Δt_max::Float64=2 * sys.T_max / (N-1),
+    free_time::Bool=true,
+    geodesic::Bool=true
+)
+    Δt = sys.T_max / (N - 1)
+    n_drives = length(sys.H_drives)
+    
+    # Initialize unitary trajectory
+    if geodesic
+        H_drift = Matrix(get_drift(sys))
+        Ũ⃗ = unitary_geodesic(U_init, U_goal, N, H_drift=H_drift)
+    else
+        Ũ⃗ = unitary_linear_interpolation(U_init, U_goal, N)
+    end
+    
+    # Initialize controls (zero at boundaries)
+    u = hcat(
+        zeros(n_drives),
+        randn(n_drives, N - 2) * 0.01,
+        zeros(n_drives)
+    )
+    
+    # Timesteps
+    Δt_vec = fill(Δt, N)
+    
+    # Initial and final constraints
+    Ũ⃗_init = operator_to_iso_vec(U_init)
+    Ũ⃗_goal = operator_to_iso_vec(U_goal)
+    
+    initial = (Ũ⃗ = Ũ⃗_init, u = zeros(n_drives))
+    final = (u = zeros(n_drives),)
+    goal = (Ũ⃗ = Ũ⃗_goal,)
+    
+    # Bounds - convert drive_bounds from Vector{Tuple} to Tuple of Vectors
+    u_lower = [sys.drive_bounds[i][1] for i in 1:n_drives]
+    u_upper = [sys.drive_bounds[i][2] for i in 1:n_drives]
+    Δt_bounds = free_time ? (Δt_min, Δt_max) : (Δt, Δt)
+    bounds = (
+        u = (u_lower, u_upper),
+        Δt = Δt_bounds
+    )
+    
+    return NamedTrajectory(
+        (Ũ⃗ = Ũ⃗, u = u, Δt = reshape(Δt_vec, 1, N));
+        controls = (:u, :Δt),
+        timestep = :Δt,
+        initial = initial,
+        final = final,
+        goal = goal,
+        bounds = bounds
+    )
+end
+
+"""
+    ket_trajectory(
+        sys::QuantumSystem,
+        ψ_inits::AbstractVector{<:AbstractVector{<:ComplexF64}},
+        ψ_goals::AbstractVector{<:AbstractVector{<:ComplexF64}},
+        N::Int;
+        state_name::Symbol=:ψ̃,
+        state_names::Union{AbstractVector{<:Symbol}, Nothing}=nothing,
+        Δt_min::Float64=sys.T_max / (2 * (N-1)),
+        Δt_max::Float64=2 * sys.T_max / (N-1),
+        free_time::Bool=true
+    )
+
+Create a ket state trajectory initialized from a quantum system.
+
+Supports multiple simultaneous state trajectories with shared controls.
+
+# Arguments
+- `sys::QuantumSystem`: The quantum system
+- `ψ_inits::AbstractVector`: Vector of initial ket states
+- `ψ_goals::AbstractVector`: Vector of target ket states
+- `N::Int`: Number of knot points
+
+# Keyword Arguments
+- `state_name::Symbol`: Base name for state variables (default: :ψ̃)
+- `state_names::Union{AbstractVector{<:Symbol}, Nothing}`: Explicit names for each state (auto-generated if not provided)
+- `Δt_min::Float64`: Minimum timestep (default: T_max / (2*(N-1)))
+- `Δt_max::Float64`: Maximum timestep (default: 2*T_max / (N-1))
+- `free_time::Bool`: Whether timesteps are free or fixed (default: true)
+
+# Returns
+- `NamedTrajectory`: Initialized ket trajectory
+
+# Examples
+```julia
+# Single state
+traj = ket_trajectory(sys, [ψ_init], [ψ_goal], 10)
+
+# Multiple states with shared controls
+traj = ket_trajectory(sys, [ψ1_init, ψ2_init], [ψ1_goal, ψ2_goal], 10)
+```
+"""
+function ket_trajectory(
+    sys::QuantumSystem,
+    ψ_inits::AbstractVector{<:AbstractVector{<:ComplexF64}},
+    ψ_goals::AbstractVector{<:AbstractVector{<:ComplexF64}},
+    N::Int;
+    state_name::Symbol=:ψ̃,
+    state_names::Union{AbstractVector{<:Symbol}, Nothing}=nothing,
+    Δt_min::Float64=sys.T_max / (2 * (N-1)),
+    Δt_max::Float64=2 * sys.T_max / (N-1),
+    free_time::Bool=true
+)
+    @assert length(ψ_inits) == length(ψ_goals) "ψ_inits and ψ_goals must have the same length"
+    
+    Δt = sys.T_max / (N - 1)
+    n_drives = length(sys.H_drives)
+    n_states = length(ψ_inits)
+    
+    # Generate state names if not provided
+    if isnothing(state_names)
+        if n_states == 1
+            state_names = [state_name]
+        else
+            state_names = [Symbol(string(state_name) * "$i") for i = 1:n_states]
+        end
+    else
+        @assert length(state_names) == n_states "state_names must have same length as ψ_inits"
+    end
+    
+    # Convert to iso representation
+    ψ̃_inits = ket_to_iso.(ψ_inits)
+    ψ̃_goals = ket_to_iso.(ψ_goals)
+    
+    # Linear interpolation of states
+    ψ̃_trajs = [linear_interpolation(ψ̃_init, ψ̃_goal, N) for (ψ̃_init, ψ̃_goal) in zip(ψ̃_inits, ψ̃_goals)]
+    
+    # Initialize controls (zero at boundaries)
+    u = hcat(
+        zeros(n_drives),
+        randn(n_drives, N - 2) * 0.01,
+        zeros(n_drives)
+    )
+    
+    # Timesteps
+    Δt_vec = fill(Δt, N)
+    
+    # Initial and final constraints
+    initial_states = NamedTuple{Tuple(state_names)}(Tuple(ψ̃_inits))
+    goal_states = NamedTuple{Tuple(state_names)}(Tuple(ψ̃_goals))
+    
+    initial = merge(initial_states, (u = zeros(n_drives),))
+    final = (u = zeros(n_drives),)
+    goal = goal_states
+    
+    # Bounds - convert drive_bounds from Vector{Tuple} to Tuple of Vectors
+    u_lower = [sys.drive_bounds[i][1] for i in 1:n_drives]
+    u_upper = [sys.drive_bounds[i][2] for i in 1:n_drives]
+    Δt_bounds = free_time ? (Δt_min, Δt_max) : (Δt, Δt)
+    bounds = (
+        u = (u_lower, u_upper),
+        Δt = Δt_bounds
+    )
+    
+    # Build component data
+    state_data = NamedTuple{Tuple(state_names)}(Tuple(ψ̃_trajs))
+    comps_data = merge(state_data, (u = u, Δt = reshape(Δt_vec, 1, N)))
+    
+    return NamedTrajectory(
+        comps_data;
+        controls = (:u, :Δt),
+        timestep = :Δt,
+        initial = initial,
+        final = final,
+        goal = goal,
+        bounds = bounds
+    )
+end
+
+"""
+    ket_trajectory(
+        sys::QuantumSystem,
+        ψ_init::AbstractVector{<:ComplexF64},
+        ψ_goal::AbstractVector{<:ComplexF64},
+        N::Int;
+        kwargs...
+    )
+
+Convenience constructor for a single ket state trajectory.
+
+# Arguments
+- `sys::QuantumSystem`: The quantum system
+- `ψ_init::AbstractVector`: Initial ket state
+- `ψ_goal::AbstractVector`: Target ket state
+- `N::Int`: Number of knot points
+
+# Keyword Arguments
+- `kwargs...`: Additional arguments passed to the main `ket_trajectory` method
+
+# Returns
+- `NamedTrajectory`: Initialized ket trajectory
+"""
+function ket_trajectory(
+    sys::QuantumSystem,
+    ψ_init::AbstractVector{<:ComplexF64},
+    ψ_goal::AbstractVector{<:ComplexF64},
+    N::Int;
+    kwargs...
+)
+    return ket_trajectory(sys, [ψ_init], [ψ_goal], N; kwargs...)
+end
+
+"""
+    density_trajectory(
+        sys::OpenQuantumSystem,
+        ρ_init::AbstractMatrix,
+        ρ_goal::AbstractMatrix,
+        N::Int;
+        Δt_min::Float64=sys.T_max / (2 * (N-1)),
+        Δt_max::Float64=2 * sys.T_max / (N-1),
+        free_time::Bool=true
+    )
+
+Create a density matrix trajectory initialized from an open quantum system.
+
+# Arguments
+- `sys::OpenQuantumSystem`: The open quantum system
+- `ρ_init::AbstractMatrix`: Initial density matrix
+- `ρ_goal::AbstractMatrix`: Target density matrix
+- `N::Int`: Number of knot points
+
+# Keyword Arguments
+- `Δt_min::Float64`: Minimum timestep (default: T_max / (2*(N-1)))
+- `Δt_max::Float64`: Maximum timestep (default: 2*T_max / (N-1))
+- `free_time::Bool`: Whether timesteps are free or fixed (default: true)
+
+# Returns
+- `NamedTrajectory`: Initialized density matrix trajectory
+"""
+function density_trajectory(
+    sys::OpenQuantumSystem,
+    ρ_init::AbstractMatrix,
+    ρ_goal::AbstractMatrix,
+    N::Int;
+    Δt_min::Float64=sys.T_max / (2 * (N-1)),
+    Δt_max::Float64=2 * sys.T_max / (N-1),
+    free_time::Bool=true
+)
+    Δt = sys.T_max / (N - 1)
+    n_drives = length(sys.H_drives)
+    
+    # Convert to iso representation
+    ρ⃗̃_init = density_to_iso_vec(ρ_init)
+    ρ⃗̃_goal = density_to_iso_vec(ρ_goal)
+    
+    # Linear interpolation of state
+    ρ⃗̃ = linear_interpolation(ρ⃗̃_init, ρ⃗̃_goal, N)
+    
+    # Initialize controls (zero at boundaries)
+    u = hcat(
+        zeros(n_drives),
+        randn(n_drives, N - 2) * 0.01,
+        zeros(n_drives)
+    )
+    
+    # Timesteps
+    Δt_vec = fill(Δt, N)
+    
+    # Initial and final constraints
+    initial = (ρ⃗̃ = ρ⃗̃_init, u = zeros(n_drives))
+    final = (u = zeros(n_drives),)
+    goal = (ρ⃗̃ = ρ⃗̃_goal,)
+    
+    # Bounds - convert drive_bounds from Vector{Tuple} to Tuple of Vectors
+    u_lower = [sys.drive_bounds[i][1] for i in 1:n_drives]
+    u_upper = [sys.drive_bounds[i][2] for i in 1:n_drives]
+    Δt_bounds = free_time ? (Δt_min, Δt_max) : (Δt, Δt)
+    bounds = (
+        u = (u_lower, u_upper),
+        Δt = Δt_bounds
+    )
+    
+    return NamedTrajectory(
+        (ρ⃗̃ = ρ⃗̃, u = u, Δt = reshape(Δt_vec, 1, N));
+        controls = (:u, :Δt),
+        timestep = :Δt,
+        initial = initial,
+        final = final,
+        goal = goal,
+        bounds = bounds
+    )
+end
 
 
 # ============================================================================= #
@@ -961,6 +1288,141 @@ end
     @test result[:, 1:2] ≈ X
     @test result[:, 5:6] ≈ Y
     @test result[:, 3:4] ≈ (X + Y) / 2
+end
+
+@testitem "unitary_trajectory convenience function" begin
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    
+    # Create a simple quantum system
+    sys = QuantumSystem(
+        GATES[:Z],              # H_drift
+        [GATES[:X], GATES[:Y]], # H_drives
+        1.0,                    # T_max
+        [1.0, 1.0]             # drive_bounds
+    )
+    
+    N = 10
+    
+    # Test with default parameters (identity to identity)
+    U_goal = GATES[:I]
+    traj = unitary_trajectory(sys, U_goal, N)
+    @test traj isa NamedTrajectory
+    @test size(traj[:Ũ⃗], 2) == N
+    @test size(traj[:u], 2) == N
+    @test size(traj[:u], 1) == 2  # 2 drives
+    
+    # Test with custom initial and goal unitaries
+    U_init = GATES[:I]
+    U_goal = GATES[:X]
+    traj2 = unitary_trajectory(sys, U_goal, N; U_init=U_init)
+    @test traj2 isa NamedTrajectory
+    @test size(traj2[:Ũ⃗], 2) == N
+    
+    # Test with fixed time (free_time=false)
+    traj3 = unitary_trajectory(sys, U_goal, N; free_time=false)
+    @test traj3 isa NamedTrajectory
+    # Check that Δt bounds are equal (fixed timestep)
+    Δt_val = sys.T_max / (N - 1)
+    @test traj3.bounds[:Δt][1][1] == Δt_val
+    @test traj3.bounds[:Δt][2][1] == Δt_val
+    
+    # Test with custom Δt bounds
+    traj4 = unitary_trajectory(sys, U_goal, N; Δt_min=0.05, Δt_max=0.2)
+    @test traj4 isa NamedTrajectory
+    @test traj4.bounds[:Δt][1][1] == 0.05
+    @test traj4.bounds[:Δt][2][1] == 0.2
+end
+
+@testitem "ket_trajectory convenience function" begin
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    
+    # Create a simple quantum system
+    sys = QuantumSystem(
+        GATES[:Z],              # H_drift
+        [GATES[:X], GATES[:Y]], # H_drives
+        1.0,                    # T_max
+        [1.0, 1.0]             # drive_bounds
+    )
+    
+    N = 10
+    ψ_init = ComplexF64[1.0, 0.0]
+    ψ_goal = ComplexF64[0.0, 1.0]
+    
+    # Test with specified initial and goal states (single state)
+    traj = ket_trajectory(sys, ψ_init, ψ_goal, N)
+    @test traj isa NamedTrajectory
+    @test size(traj[:ψ̃], 2) == N
+    @test size(traj[:u], 2) == N
+    @test size(traj[:u], 1) == 2  # 2 drives
+    
+    # Test with fixed time
+    traj3 = ket_trajectory(sys, ψ_init, ψ_goal, N; free_time=false)
+    @test traj3 isa NamedTrajectory
+    Δt_val = sys.T_max / (N - 1)
+    @test traj3.bounds[:Δt][1][1] == Δt_val
+    @test traj3.bounds[:Δt][2][1] == Δt_val
+    
+    # Test with custom Δt bounds
+    traj4 = ket_trajectory(sys, ψ_init, ψ_goal, N; Δt_min=0.05, Δt_max=0.2)
+    @test traj4 isa NamedTrajectory
+    @test traj4.bounds[:Δt][1][1] == 0.05
+    @test traj4.bounds[:Δt][2][1] == 0.2
+    
+    # Test with multiple states
+    ψ2_init = ComplexF64[0.0, 1.0]
+    ψ2_goal = ComplexF64[1.0, 0.0]
+    traj5 = ket_trajectory(sys, [ψ_init, ψ2_init], [ψ_goal, ψ2_goal], N)
+    @test traj5 isa NamedTrajectory
+    @test size(traj5[:ψ̃1], 2) == N
+    @test size(traj5[:ψ̃2], 2) == N
+    @test size(traj5[:u], 2) == N
+    
+    # Test with custom state names
+    traj6 = ket_trajectory(sys, [ψ_init, ψ2_init], [ψ_goal, ψ2_goal], N;
+        state_names=[:ψ̃_a, :ψ̃_b]
+    )
+    @test traj6 isa NamedTrajectory
+    @test size(traj6[:ψ̃_a], 2) == N
+    @test size(traj6[:ψ̃_b], 2) == N
+end
+
+@testitem "density_trajectory convenience function" begin
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    
+    # Create an open quantum system
+    sys = OpenQuantumSystem(
+        GATES[:Z],              # H_drift
+        [GATES[:X], GATES[:Y]], # H_drives
+        1.0,                    # T_max
+        [1.0, 1.0]             # drive_bounds
+    )
+    
+    N = 10
+    ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]  # |0⟩⟨0|
+    ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]  # |1⟩⟨1|
+    
+    # Test with specified initial and goal states
+    traj = density_trajectory(sys, ρ_init, ρ_goal, N)
+    @test traj isa NamedTrajectory
+    @test size(traj[:ρ⃗̃], 2) == N
+    @test size(traj[:u], 2) == N
+    @test size(traj[:u], 1) == 2  # 2 drives
+    
+    # Test with fixed time
+    traj3 = density_trajectory(sys, ρ_init, ρ_goal, N; free_time=false)
+    @test traj3 isa NamedTrajectory
+    Δt_val = sys.T_max / (N - 1)
+    @test traj3.bounds[:Δt][1][1] == Δt_val
+    @test traj3.bounds[:Δt][2][1] == Δt_val
+    
+    # Test with custom Δt bounds
+    traj4 = density_trajectory(sys, ρ_init, ρ_goal, N; Δt_min=0.05, Δt_max=0.2)
+    @test traj4 isa NamedTrajectory
+    @test traj4.bounds[:Δt][1][1] == 0.05
+    @test traj4.bounds[:Δt][2][1] == 0.2
 end
 
 
