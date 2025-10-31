@@ -13,7 +13,7 @@
 # Specifically, for a simple two-qubit system in a rotating frame, we have
 
 # ```math
-# H = J_{12} \sigma_1^x \sigma_2^x + \sum_{i \in {1,2}} a_i^R(t) {\sigma^x_i \over 2} + a_i^I(t) {\sigma^y_i \over 2}.
+# H = J_{12} \sigma_1^x \sigma_2^x + \sum_{i \in {1,2}} u_i^R(t) {\sigma^x_i \over 2} + u_i^I(t) {\sigma^y_i \over 2}.
 # ```
 
 # where
@@ -21,7 +21,7 @@
 # ```math
 # \begin{align*}
 # J_{12} &= 0.001 \text{ GHz}, \\
-# |a_i^R(t)| &\leq 0.1 \text{ GHz} \\
+# |u_i^R(t)| &\leq 0.1 \text{ GHz} \\
 # \end{align*}
 # ```
 
@@ -40,9 +40,9 @@ using CairoMakie
 ⊗(a, b) = kron(a, b)
 
 ## Define our operators
-σx = GATES[:X]
-σy = GATES[:Y]
-Id = GATES[:I]
+σx = GATES.X
+σy = GATES.Y
+Id = GATES.I
 
 ## Lift the operators to the two-qubit Hilbert space
 σx_1 = σx ⊗ Id
@@ -53,7 +53,7 @@ Id = GATES[:I]
 
 ## Define the parameters of the Hamiltonian
 J_12 = 0.001 # GHz
-a_bound = 0.100 # GHz
+u_bound = 0.100 # GHz
 
 ## Define the drift (coupling) Hamiltonian
 H_drift = J_12 * (σx ⊗ σx)
@@ -62,22 +62,21 @@ H_drift = J_12 * (σx ⊗ σx)
 H_drives = [σx_1 / 2, σy_1 / 2, σx_2 / 2, σy_2 / 2]
 
 ## Define control (and higher derivative) bounds
-a_bound = 0.1
-da_bound = 0.0005
-dda_bound = 0.0025
+u_bound = 0.1
+du_bound = 0.0005
+ddu_bound = 0.0025
 
 ## Scale the Hamiltonians by 2π
 H_drift *= 2π
 H_drives .*= 2π
 
 ## Define the time parameters
-T = 100 # timesteps
-duration = 100 # μs
-Δt = duration / T
-Δt_max = 400 / T
+N = 100 # timesteps
+T_max = 400.0 # μs (maximum duration)
+drive_bounds = fill((-u_bound, u_bound), length(H_drives))
 
 ## Define the system
-sys = QuantumSystem(H_drift, H_drives)
+sys = QuantumSystem(H_drift, H_drives, T_max, drive_bounds)
 
 # ## SWAP gate
 
@@ -92,22 +91,19 @@ U_goal = [
 ## Set up the problem
 prob = UnitarySmoothPulseProblem(
     sys,
-    U_goal,
-    T,
-    Δt;
-    a_bound=a_bound,
-    da_bound=da_bound,
-    dda_bound=dda_bound,
-    R_da=0.01,
-    R_dda=0.01,
-    Δt_max=Δt_max,
+    EmbeddedOperator(U_goal, sys),
+    N;
+    du_bound=du_bound,
+    ddu_bound=ddu_bound,
+    R_du=0.01,
+    R_ddu=0.01,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
 fid_init = unitary_rollout_fidelity(prob.trajectory, sys)
 println(fid_init)
 
 # Solve the problem
-solve!(prob; max_iter=100)
+solve!(prob; max_iter=100, options=IpoptOptions(eval_hessian=false))
 
 ## Let's take a look at the final fidelity
 fid_final = unitary_rollout_fidelity(prob.trajectory, sys)
@@ -163,15 +159,12 @@ U_goal = exp(im * π/4 * σx_1 * σx_2)
 
 prob = UnitarySmoothPulseProblem(
     sys,
-    U_goal,
-    T,
-    Δt;
-    a_bound=a_bound,
-    da_bound=da_bound,
-    dda_bound=dda_bound,
-    R_da=0.01,
-    R_dda=0.01,
-    Δt_max=Δt_max,
+    EmbeddedOperator(U_goal, sys),
+    N;
+    du_bound=du_bound,
+    ddu_bound=ddu_bound,
+    R_du=0.01,
+    R_ddu=0.01,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
 fid_init = unitary_rollout_fidelity(prob.trajectory, sys)
