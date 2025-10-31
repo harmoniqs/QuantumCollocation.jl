@@ -779,7 +779,8 @@ end
         Δt_min::Float64=sys.T_max / (2 * (N-1)),
         Δt_max::Float64=2 * sys.T_max / (N-1),
         free_time::Bool=true,
-        geodesic::Bool=true
+        geodesic::Bool=true,
+        store_times::Bool=false
     )
 
 Create a unitary trajectory initialized from a quantum system.
@@ -795,6 +796,7 @@ Create a unitary trajectory initialized from a quantum system.
 - `Δt_max::Float64`: Maximum timestep (default: 2*T_max / (N-1))
 - `free_time::Bool`: Whether timesteps are free or fixed (default: true)
 - `geodesic::Bool`: Use geodesic interpolation (default: true)
+- `store_times::Bool`: Store cumulative time values in the trajectory (default: false)
 
 # Returns
 - `NamedTrajectory`: Initialized unitary trajectory
@@ -807,7 +809,8 @@ function unitary_trajectory(
     Δt_min::Float64=sys.T_max / (2 * (N-1)),
     Δt_max::Float64=2 * sys.T_max / (N-1),
     free_time::Bool=true,
-    geodesic::Bool=true
+    geodesic::Bool=true,
+    store_times::Bool=false
 )
     Δt = sys.T_max / (N - 1)
     n_drives = length(sys.H_drives)
@@ -838,6 +841,12 @@ function unitary_trajectory(
     final = (u = zeros(n_drives),)
     goal = (Ũ⃗ = Ũ⃗_goal,)
     
+    # Time data
+    if store_times
+        t_data = [0.0; cumsum(Δt_vec)[1:end-1]]
+        initial = merge(initial, (t = [0.0],))
+    end
+    
     # Bounds - convert drive_bounds from Vector{Tuple} to Tuple of Vectors
     u_lower = [sys.drive_bounds[i][1] for i in 1:n_drives]
     u_upper = [sys.drive_bounds[i][2] for i in 1:n_drives]
@@ -847,9 +856,18 @@ function unitary_trajectory(
         Δt = Δt_bounds
     )
     
+    # Build component data
+    comps_data = (Ũ⃗ = Ũ⃗, u = u, Δt = reshape(Δt_vec, 1, N))
+    controls = (:u, :Δt)
+    
+    if store_times
+        comps_data = merge(comps_data, (t = reshape(t_data, 1, N),))
+        controls = (controls..., :t)
+    end
+    
     return NamedTrajectory(
-        (Ũ⃗ = Ũ⃗, u = u, Δt = reshape(Δt_vec, 1, N));
-        controls = (:u, :Δt),
+        comps_data;
+        controls = controls,
         timestep = :Δt,
         initial = initial,
         final = final,
@@ -868,7 +886,8 @@ end
         state_names::Union{AbstractVector{<:Symbol}, Nothing}=nothing,
         Δt_min::Float64=sys.T_max / (2 * (N-1)),
         Δt_max::Float64=2 * sys.T_max / (N-1),
-        free_time::Bool=true
+        free_time::Bool=true,
+        store_times::Bool=false
     )
 
 Create a ket state trajectory initialized from a quantum system.
@@ -887,6 +906,7 @@ Supports multiple simultaneous state trajectories with shared controls.
 - `Δt_min::Float64`: Minimum timestep (default: T_max / (2*(N-1)))
 - `Δt_max::Float64`: Maximum timestep (default: 2*T_max / (N-1))
 - `free_time::Bool`: Whether timesteps are free or fixed (default: true)
+- `store_times::Bool`: Store cumulative time values in the trajectory (default: false)
 
 # Returns
 - `NamedTrajectory`: Initialized ket trajectory
@@ -909,7 +929,8 @@ function ket_trajectory(
     state_names::Union{AbstractVector{<:Symbol}, Nothing}=nothing,
     Δt_min::Float64=sys.T_max / (2 * (N-1)),
     Δt_max::Float64=2 * sys.T_max / (N-1),
-    free_time::Bool=true
+    free_time::Bool=true,
+    store_times::Bool=false
 )
     @assert length(ψ_inits) == length(ψ_goals) "ψ_inits and ψ_goals must have the same length"
     
@@ -953,6 +974,12 @@ function ket_trajectory(
     final = (u = zeros(n_drives),)
     goal = goal_states
     
+    # Time data
+    if store_times
+        t_data = [0.0; cumsum(Δt_vec)[1:end-1]]
+        initial = merge(initial, (t = [0.0],))
+    end
+    
     # Bounds - convert drive_bounds from Vector{Tuple} to Tuple of Vectors
     u_lower = [sys.drive_bounds[i][1] for i in 1:n_drives]
     u_upper = [sys.drive_bounds[i][2] for i in 1:n_drives]
@@ -965,10 +992,16 @@ function ket_trajectory(
     # Build component data
     state_data = NamedTuple{Tuple(state_names)}(Tuple(ψ̃_trajs))
     comps_data = merge(state_data, (u = u, Δt = reshape(Δt_vec, 1, N)))
+    controls = (:u, :Δt)
+    
+    if store_times
+        comps_data = merge(comps_data, (t = reshape(t_data, 1, N),))
+        controls = (controls..., :t)
+    end
     
     return NamedTrajectory(
         comps_data;
-        controls = (:u, :Δt),
+        controls = controls,
         timestep = :Δt,
         initial = initial,
         final = final,
@@ -1018,7 +1051,8 @@ end
         N::Int;
         Δt_min::Float64=sys.T_max / (2 * (N-1)),
         Δt_max::Float64=2 * sys.T_max / (N-1),
-        free_time::Bool=true
+        free_time::Bool=true,
+        store_times::Bool=false
     )
 
 Create a density matrix trajectory initialized from an open quantum system.
@@ -1033,6 +1067,7 @@ Create a density matrix trajectory initialized from an open quantum system.
 - `Δt_min::Float64`: Minimum timestep (default: T_max / (2*(N-1)))
 - `Δt_max::Float64`: Maximum timestep (default: 2*T_max / (N-1))
 - `free_time::Bool`: Whether timesteps are free or fixed (default: true)
+- `store_times::Bool`: Store cumulative time values in the trajectory (default: false)
 
 # Returns
 - `NamedTrajectory`: Initialized density matrix trajectory
@@ -1044,7 +1079,8 @@ function density_trajectory(
     N::Int;
     Δt_min::Float64=sys.T_max / (2 * (N-1)),
     Δt_max::Float64=2 * sys.T_max / (N-1),
-    free_time::Bool=true
+    free_time::Bool=true,
+    store_times::Bool=false
 )
     Δt = sys.T_max / (N - 1)
     n_drives = length(sys.H_drives)
@@ -1071,6 +1107,12 @@ function density_trajectory(
     final = (u = zeros(n_drives),)
     goal = (ρ⃗̃ = ρ⃗̃_goal,)
     
+    # Time data
+    if store_times
+        t_data = [0.0; cumsum(Δt_vec)[1:end-1]]
+        initial = merge(initial, (t = [0.0],))
+    end
+    
     # Bounds - convert drive_bounds from Vector{Tuple} to Tuple of Vectors
     u_lower = [sys.drive_bounds[i][1] for i in 1:n_drives]
     u_upper = [sys.drive_bounds[i][2] for i in 1:n_drives]
@@ -1080,9 +1122,18 @@ function density_trajectory(
         Δt = Δt_bounds
     )
     
+    # Build component data
+    comps_data = (ρ⃗̃ = ρ⃗̃, u = u, Δt = reshape(Δt_vec, 1, N))
+    controls = (:u, :Δt)
+    
+    if store_times
+        comps_data = merge(comps_data, (t = reshape(t_data, 1, N),))
+        controls = (controls..., :t)
+    end
+    
     return NamedTrajectory(
-        (ρ⃗̃ = ρ⃗̃, u = u, Δt = reshape(Δt_vec, 1, N));
-        controls = (:u, :Δt),
+        comps_data;
+        controls = controls,
         timestep = :Δt,
         initial = initial,
         final = final,
@@ -1332,6 +1383,14 @@ end
     @test traj4 isa NamedTrajectory
     @test traj4.bounds[:Δt][1][1] == 0.05
     @test traj4.bounds[:Δt][2][1] == 0.2
+    
+    # Test with store_times=true
+    traj5 = unitary_trajectory(sys, U_goal, N; store_times=true)
+    @test traj5 isa NamedTrajectory
+    @test haskey(traj5.components, :t)
+    @test size(traj5[:t], 2) == N
+    @test traj5[:t][1] ≈ 0.0
+    @test traj5.initial[:t][1] ≈ 0.0
 end
 
 @testitem "ket_trajectory convenience function" begin
@@ -1386,6 +1445,14 @@ end
     @test traj6 isa NamedTrajectory
     @test size(traj6[:ψ̃_a], 2) == N
     @test size(traj6[:ψ̃_b], 2) == N
+    
+    # Test with store_times=true
+    traj7 = ket_trajectory(sys, ψ_init, ψ_goal, N; store_times=true)
+    @test traj7 isa NamedTrajectory
+    @test haskey(traj7.components, :t)
+    @test size(traj7[:t], 2) == N
+    @test traj7[:t][1] ≈ 0.0
+    @test traj7.initial[:t][1] ≈ 0.0
 end
 
 @testitem "density_trajectory convenience function" begin
@@ -1423,6 +1490,14 @@ end
     @test traj4 isa NamedTrajectory
     @test traj4.bounds[:Δt][1][1] == 0.05
     @test traj4.bounds[:Δt][2][1] == 0.2
+    
+    # Test with store_times=true
+    traj5 = density_trajectory(sys, ρ_init, ρ_goal, N; store_times=true)
+    @test traj5 isa NamedTrajectory
+    @test haskey(traj5.components, :t)
+    @test size(traj5[:t], 2) == N
+    @test traj5[:t][1] ≈ 0.0
+    @test traj5.initial[:t][1] ≈ 0.0
 end
 
 
