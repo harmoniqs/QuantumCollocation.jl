@@ -244,7 +244,7 @@ function initialize_trajectory(
     n_drives::Int,
     control_bounds::Tuple{Vararg{VectorBound}};
     bound_state=false,
-    control_name=:u,
+    control_name=:a,
     n_control_derivatives::Int=length(control_bounds) - 1,
     zero_initial_and_final_derivative=false,
     timestep_name=:Δt,
