@@ -78,6 +78,7 @@ get_subspace_identity(op) |> sparse
 prob = UnitarySmoothPulseProblem(sys, op, T, Δt; a_bound=a_bound)
 
 ## solve the problem
+
 #=
 ```julia
 solve!(prob; max_iter=50)
@@ -236,11 +237,6 @@ nothing # hide
 #=
 ```julia
 solve!(prob_leakage; max_iter=250)
-```
-
-#=
-```julia
-
 ```
 
 ```@raw html

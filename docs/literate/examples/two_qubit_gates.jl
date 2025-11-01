@@ -107,6 +107,7 @@ fid_init = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
 println(fid_init)
 
 # Solve the problem
+
 #=
 ```julia
 solve!(prob; max_iter=100)
