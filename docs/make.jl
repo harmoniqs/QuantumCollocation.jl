@@ -3,14 +3,14 @@ using PiccoloDocsTemplate
 
 pages = [
     "Home" => "index.md",
-    # "Manual" => [
-    #     "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
-    #     "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
-    # ],
-    # "Examples" => [
-    #     "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
-    #     "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
-    # ],
+    "Manual" => [
+        "Ket Problem Templates" => "generated/man/ket_problem_templates.md",
+        "Unitary Problem Templates" => "generated/man/unitary_problem_templates.md",
+    ],
+    "Examples" => [
+        "Two Qubit Gates" => "generated/examples/two_qubit_gates.md",
+        "Multilevel Transmon" => "generated/examples/multilevel_transmon.md",
+    ],
     "Library" => "lib.md",
 ]
 
