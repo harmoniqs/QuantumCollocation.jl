@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Two Qubit Gates · QuantumCollocation.jl</title><meta name="title" content="Two Qubit Gates · QuantumCollocation.jl"/><meta property="og:title" content="Two Qubit Gates · QuantumCollocation.jl"/><meta property="twitter:title" content="Two Qubit Gates · QuantumCollocation.jl"/><meta name="description" content="Documentation for QuantumCollocation.jl."/><meta property="og:description" content="Documentation for QuantumCollocation.jl."/><meta property="twitter:description" content="Documentation for QuantumCollocation.jl."/><meta property="og:url" content="https://docs.harmoniqs.co/QuantumCollocation.jl/generated/examples/two_qubit_gates/"/><meta property="twitter:url" content="https://docs.harmoniqs.co/QuantumCollocation.jl/generated/examples/two_qubit_gates/"/><link rel="canonical" href="https://docs.harmoniqs.co/QuantumCollocation.jl/generated/examples/two_qubit_gates/"/><script data-outdated-warner src="../../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../search_index.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../../">QuantumCollocation.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../../">Home</a></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../../man/ket_problem_templates/">Ket Problem Templates</a></li><li><a class="tocitem" href="../../man/unitary_problem_templates/">Unitary Problem Templates</a></li></ul></li><li><span class="tocitem">Examples</span><ul><li class="is-active"><a class="tocitem" href>Two Qubit Gates</a><ul class="internal"><li><a class="tocitem" href="#Defining-our-Hamiltonian"><span>Defining our Hamiltonian</span></a></li><li><a class="tocitem" href="#SWAP-gate"><span>SWAP gate</span></a></li><li><a class="tocitem" href="#Mølmer–Sørensen-gate"><span>Mølmer–Sørensen gate</span></a></li></ul></li><li><a class="tocitem" href="../multilevel_transmon/">Multilevel Transmon</a></li></ul></li><li><a class="tocitem" href="../../../lib/">Library</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Two Qubit Gates</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Two Qubit Gates</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/harmoniqs/QuantumCollocation.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/harmoniqs/QuantumCollocation.jl/blob/main/docs/literate/examples/two_qubit_gates.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Two-Qubit-Gates"><a class="docs-heading-anchor" href="#Two-Qubit-Gates">Two Qubit Gates</a><a id="Two-Qubit-Gates-1"></a><a class="docs-heading-anchor-permalink" href="#Two-Qubit-Gates" title="Permalink"></a></h1><p>In this example we will solve for a selection of two-qubit gates using a simple two-qubit system. We will use the <a href="../../../lib/#QuantumCollocation.ProblemTemplates.UnitarySmoothPulseProblem"><code>UnitarySmoothPulseProblem</code></a> template to solve for the optimal control fields.</p><h2 id="Defining-our-Hamiltonian"><a class="docs-heading-anchor" href="#Defining-our-Hamiltonian">Defining our Hamiltonian</a><a id="Defining-our-Hamiltonian-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-our-Hamiltonian" title="Permalink"></a></h2><p>In quantum optimal control we work with Hamiltonians of the form</p><p class="math-container">\[H(t) = H_{\text{drift}} + \sum_{j} u^j(t) H_{\text{drive}}^j,\]</p><p>Specifically, for a simple two-qubit system in a rotating frame, we have</p><p class="math-container">\[H = J_{12} \sigma_1^x \sigma_2^x + \sum_{i \in {1,2}} a_i^R(t) {\sigma^x_i \over 2} + a_i^I(t) {\sigma^y_i \over 2}.\]</p><p>where</p><p class="math-container">\[\begin{align*}
+J_{12} &amp;= 0.001 \text{ GHz}, \\
+|a_i^R(t)| &amp;\leq 0.1 \text{ GHz} \\
+\end{align*}\]</p><p>And the duration of the gate will be capped at <span>$400 \ \mu s$</span>.</p><p>Let&#39;s now set this up using some of the convenience functions available in QuantumCollocation.jl.</p><pre><code class="language-julia hljs">using QuantumCollocation
+using PiccoloQuantumObjects
+using NamedTrajectories
+using LinearAlgebra
+
+using PiccoloPlots
+using CairoMakie
+
+⊗(a, b) = kron(a, b)
+
+# Define our operators
+σx = GATES[:X]
+σy = GATES[:Y]
+Id = GATES[:I]
+
+# Lift the operators to the two-qubit Hilbert space
+σx_1 = σx ⊗ Id
+σx_2 = Id ⊗ σx
+
+σy_1 = σy ⊗ Id
+σy_2 = Id ⊗ σy
+
+# Define the parameters of the Hamiltonian
+J_12 = 0.001 # GHz
+a_bound = 0.100 # GHz
+
+# Define the drift (coupling) Hamiltonian
+H_drift = J_12 * (σx ⊗ σx)
+
+# Define the control Hamiltonians
+H_drives = [σx_1 / 2, σy_1 / 2, σx_2 / 2, σy_2 / 2]
+
+# Define control (and higher derivative) bounds
+a_bound = 0.1
+da_bound = 0.0005
+dda_bound = 0.0025
+
+# Scale the Hamiltonians by 2π
+H_drift *= 2π
+H_drives .*= 2π
+
+# Define the time parameters
+T = 100 # timesteps
+duration = 100 # μs
+Δt = duration / T
+Δt_max = 400 / T
+
+# Define the system
+sys = QuantumSystem(H_drift, H_drives)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">QuantumSystem: levels = 4, n_drives = 4</code></pre><h2 id="SWAP-gate"><a class="docs-heading-anchor" href="#SWAP-gate">SWAP gate</a><a id="SWAP-gate-1"></a><a class="docs-heading-anchor-permalink" href="#SWAP-gate" title="Permalink"></a></h2><pre><code class="language-julia hljs"># Define the goal operation
+U_goal = [
+    1 0 0 0;
+    0 0 1 0;
+    0 1 0 0;
+    0 0 0 1
+] |&gt; Matrix{ComplexF64}
+
+# Set up the problem
+prob = UnitarySmoothPulseProblem(
+    sys,
+    U_goal,
+    T,
+    Δt;
+    a_bound=a_bound,
+    da_bound=da_bound,
+    dda_bound=dda_bound,
+    R_da=0.01,
+    R_dda=0.01,
+    Δt_max=Δt_max,
+    piccolo_options=PiccoloOptions(bound_state=true),
+)
+fid_init = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+println(fid_init)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    constructing UnitarySmoothPulseProblem...
+	using integrator: typeof(UnitaryIntegrator)
+	control derivative names: [:da, :dda]
+	applying timesteps_all_equal constraint: Δt
+0.00039542607543285754</code></pre><p>Solve the problem</p><pre><code class="language-julia hljs">solve!(prob; max_iter=100)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
+        applying constraint: timesteps all equal constraint
+        applying constraint: initial value of Ũ⃗
+        applying constraint: initial value of a
+        applying constraint: final value of a
+        applying constraint: bounds on a
+        applying constraint: bounds on da
+        applying constraint: bounds on dda
+        applying constraint: bounds on Δt
+        applying constraint: bounds on Ũ⃗
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+This is Ipopt version 3.14.19, running with linear solver MUMPS 5.8.1.
+
+Number of nonzeros in equality constraint Jacobian...:   122590
+Number of nonzeros in inequality constraint Jacobian.:        0
+Number of nonzeros in Lagrangian Hessian.............:    22843
+
+Total number of variables............................:     4460
+                     variables with only lower bounds:        0
+                variables with lower and upper bounds:     4460
+                     variables with only upper bounds:        0
+Total number of equality constraints.................:     4059
+Total number of inequality constraints...............:        0
+        inequality constraints with only lower bounds:        0
+   inequality constraints with lower and upper bounds:        0
+        inequality constraints with only upper bounds:        0
+
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+   0  1.9970603e+00 4.63e-01 1.55e+01   0.0 0.00e+00    -  0.00e+00 0.00e+00   0
+   1  1.9076693e+00 4.61e-01 1.54e+01  -2.2 8.78e-01    -  2.71e-03 3.51e-03f  1
+   2  1.7680105e+00 4.59e-01 1.53e+01  -2.2 8.04e-01    -  5.36e-03 4.33e-03f  1
+   3  1.5539301e+00 4.56e-01 1.52e+01  -4.0 8.13e-01    -  4.71e-03 7.71e-03h  1
+   4  1.3684504e+00 4.52e-01 1.50e+01  -2.2 7.27e-01    -  1.18e-02 8.52e-03f  1
+   5  1.2622220e+00 4.47e-01 2.48e+01  -1.7 7.84e-01    -  1.80e-02 1.04e-02f  1
+   6  1.2891831e+00 4.39e-01 1.29e+02  -1.5 7.72e-01    -  5.01e-02 1.70e-02f  1
+   7  1.6074653e+00 4.16e-01 1.74e+02  -1.5 7.35e-01    -  7.82e-02 5.18e-02f  1
+   8  2.0322168e+00 3.85e-01 1.59e+02  -1.2 7.50e-01    -  7.10e-02 7.13e-02f  1
+   9  2.0932113e+00 3.73e-01 7.91e+01  -1.3 7.65e-01    -  7.95e-02 3.26e-02f  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  10  1.9884811e+00 3.59e-01 2.54e+02  -1.9 7.52e-01    -  1.76e-02 3.62e-02h  1
+  11  2.3390484e+00 3.32e-01 2.02e+02  -0.9 9.10e-01    -  6.27e-02 7.31e-02f  1
+  12  1.5765832e+00 3.06e-01 2.15e+02  -1.7 9.10e-01    -  1.33e-01 7.46e-02h  1
+  13  1.0040588e-01 2.75e-01 2.11e+02  -2.2 1.01e+00    -  1.17e-01 9.69e-02h  1
+  14  6.3858464e-02 2.40e-01 1.31e+02  -2.1 9.09e-01    -  8.24e-02 1.22e-01h  1
+  15  5.0436191e-01 2.37e-01 1.98e+02  -1.6 1.33e+00    -  9.43e-02 1.21e-02h  1
+  16  5.3876730e-01 2.23e-01 2.49e+02  -0.6 2.01e+00    -  2.66e-02 6.02e-02f  1
+  17  2.3674022e+00 2.12e-01 4.12e+02  -1.4 1.78e+00    -  8.46e-02 4.33e-02h  1
+  18  6.5431422e-01 1.73e-01 3.86e+02  -1.2 1.05e+00    -  1.13e-01 1.81e-01f  1
+  19  1.1951694e+00 1.61e-01 3.53e+02  -1.1 1.63e+00    -  7.07e-02 6.59e-02h  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  20  1.4743227e+00 1.61e-01 3.32e+02  -4.0 2.13e+01    -  1.80e-03 3.03e-03h  1
+  21  1.3724494e+00 1.60e-01 2.69e+02  -1.5 3.85e+00    -  2.93e-02 4.78e-03h  1
+  22  6.9695105e-01 1.57e-01 2.53e+02  -1.7 4.03e+00    -  2.28e-02 1.45e-02f  1
+  23  2.0538158e-02 1.54e-01 2.62e+02  -2.3 1.09e+00    -  1.47e-02 2.52e-02h  1
+  24  7.8524390e-02 1.50e-01 2.50e+02  -0.2 3.69e+00    -  1.57e-02 2.00e-02f  1
+  25  4.2914051e+00 1.48e-01 3.71e+02  -4.0 2.68e+00    -  4.08e-02 1.70e-02h  1
+  26  3.6816385e+00 1.45e-01 4.29e+02  -1.3 1.78e+00    -  7.04e-02 1.64e-02f  1
+  27  2.3185859e+00 1.42e-01 4.32e+02  -1.6 2.75e+00    -  3.41e-02 2.13e-02f  1
+  28  1.8041227e+00 1.36e-01 4.36e+02  -1.8 4.61e+00    -  1.94e-02 3.81e-02f  1
+  29  5.5239599e+00 1.29e-01 4.43e+02  -0.4 1.99e+00    -  3.24e-02 5.39e-02f  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  30  4.7614581e-01 1.24e-01 6.08e+02  -1.8 9.25e-01   0.0 1.55e-01 4.28e-02f  1
+  31  1.1345180e+01 1.09e-01 5.53e+02  -1.0 1.06e+00  -0.5 1.13e-01 1.06e-01h  1
+  32  5.0785142e+00 9.27e-02 5.51e+02  -4.0 7.17e-01  -0.1 6.87e-02 1.66e-01f  1
+  33  1.6310527e-01 8.59e-02 3.34e+02  -2.3 8.75e-01  -0.5 1.54e-01 8.12e-02f  1
+  34  8.4889924e+00 7.56e-02 2.88e+02  -1.2 7.64e-01  -0.1 1.23e-01 1.32e-01h  1
+  35  2.7797649e+01 6.91e-02 7.66e+02  -0.4 1.79e+00  -0.6 3.86e-02 1.03e-01f  1
+  36  4.5000628e+00 4.59e-02 7.52e+02  -0.6 8.72e-01  -0.2 2.29e-01 2.87e-01f  1
+  37  2.5825827e+01 2.27e-02 4.92e+02  -1.6 3.28e-01   0.3 3.82e-01 5.98e-01h  1
+  38  4.9997522e+01 1.90e-02 1.88e+03  -1.2 2.91e-01  -0.2 4.07e-01 1.00e+00h  1
+  39  4.8860687e+01 6.17e-03 1.24e+03  -0.8 1.74e-01   0.2 1.00e+00 6.43e-01f  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  40  3.0276475e+01 1.11e-02 4.34e+03  -0.3 1.11e+00  -0.3 1.00e+00 3.89e-01f  1
+  41  2.0160346e+00 1.36e-02 4.45e+03  -0.9 4.90e-01    -  6.20e-01 1.00e+00f  1
+  42  1.6008616e+01 9.81e-03 2.25e+03  -0.7 4.91e-01  -0.7 6.64e-01 5.00e-01h  2
+  43  1.2775014e+01 1.74e-03 1.10e+02  -0.9 9.90e-02   0.6 1.00e+00 1.00e+00f  1
+  44  1.0095478e+01 1.55e-03 3.71e+01  -1.4 9.30e-02   0.1 1.00e+00 1.00e+00f  1
+  45  4.3065561e+00 1.02e-02 1.68e+02  -1.1 3.18e-01  -0.4 1.00e+00 7.27e-01f  1
+  46  3.1601959e+00 5.95e-04 2.04e+01  -1.7 8.90e-02   0.1 1.00e+00 1.00e+00h  1
+  47  7.7733517e-01 1.41e-03 8.50e+00  -2.4 1.48e-01  -0.4 1.00e+00 1.00e+00f  1
+  48  2.9467632e-01 1.03e-03 7.12e+01  -3.1 1.69e-01  -0.9 1.00e+00 1.00e+00f  1
+  49  1.3273041e-01 2.05e-03 1.27e+02  -2.1 5.15e-01  -1.4 1.00e+00 1.53e-01f  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  50  2.0775989e-01 3.10e-04 7.10e+01  -2.8 9.13e-02  -0.9 1.00e+00 1.00e+00h  1
+  51  1.4322973e-01 3.13e-04 1.63e+02  -3.7 4.45e-02  -0.5 8.48e-01 1.00e+00h  1
+  52  1.0098985e-01 6.51e-06 1.33e+01  -4.0 2.56e-03   1.7 1.00e+00 1.00e+00h  1
+  53  9.5444738e-02 3.63e-06 3.44e-02  -4.0 1.96e-03   1.2 1.00e+00 1.00e+00h  1
+  54  8.3467046e-02 2.58e-06 4.20e-02  -4.0 2.60e-03   0.8 1.00e+00 1.00e+00h  1
+  55  6.0419877e-02 6.99e-06 5.56e-02  -4.0 6.97e-03   0.3 1.00e+00 1.00e+00f  1
+  56  2.9062547e-02 1.47e-05 6.25e-02  -4.0 1.55e-02  -0.2 1.00e+00 1.00e+00h  1
+  57  1.7465214e-03 2.39e-05 5.48e-02  -4.0 2.31e-02  -0.7 1.00e+00 1.00e+00h  1
+  58  1.2589203e-03 1.50e-05 7.08e+01  -4.0 1.75e-02  -1.1 1.00e+00 5.00e-01h  2
+  59  1.1670816e-03 1.31e-05 8.88e+00  -4.0 2.45e-02  -1.6 1.00e+00 1.25e-01h  4
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  60  3.8168472e-04 1.23e-05 6.30e+01  -4.0 2.15e-02  -2.1 1.00e+00 1.25e-01h  4
+  61  5.7408543e-04 1.23e-05 8.76e+00  -4.0 1.07e-01  -2.6 1.00e+00 1.56e-02h  7
+  62  4.0348505e-04 1.22e-05 6.26e+01  -4.0 2.13e-02  -2.1 1.00e+00 6.25e-02h  5
+  63  5.3346741e-04 1.22e-05 9.19e+00  -4.0 1.11e-01  -2.6 1.00e+00 1.56e-02h  7
+  64  4.2956191e-04 1.19e-05 6.22e+01  -4.1 1.90e-02  -2.2 1.00e+00 6.25e-02h  5
+  65  4.9526229e-04 1.34e-05 9.59e+00  -3.8 1.81e-01  -2.7 1.00e+00 1.56e-02h  7
+  66  4.2989553e-04 1.33e-05 6.18e+01  -3.9 2.20e-02  -2.2 1.00e+00 6.25e-02h  5
+  67  3.5493235e-04 1.32e-05 9.47e+00  -3.9 1.28e-01  -2.7 1.00e+00 7.81e-03h  8
+  68  4.2253831e-04 1.30e-05 6.16e+01  -4.0 2.19e-02  -2.3 1.00e+00 3.12e-02h  6
+  69  1.7755955e-03 1.21e-05 1.69e+01  -4.1 2.71e-02  -1.9 1.00e+00 1.25e-01h  4
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  70  7.3018400e-04 4.35e-05 1.34e+01  -4.0 2.02e-02  -1.4 1.00e+00 1.00e+00H  1
+  71  7.4066421e-04 3.66e-06 7.07e+01  -4.1 3.56e-03  -1.0 1.00e+00 1.00e+00h  1
+  72  3.3342726e-04 1.51e-05 7.07e+01  -4.0 4.83e-03  -1.5 1.00e+00 1.00e+00h  1
+  73  3.5021811e-04 2.50e-10 5.13e-02  -4.0 3.20e-05   2.5 1.00e+00 1.00e+00h  1
+  74  3.4992868e-04 6.86e-11 1.19e-03  -4.0 1.03e-05   2.1 1.00e+00 1.00e+00h  1
+  75  3.4934236e-04 1.76e-10 5.72e-04  -4.0 1.49e-05   1.6 1.00e+00 1.00e+00h  1
+  76  3.4818259e-04 2.89e-10 3.25e-04  -4.0 2.54e-05   1.1 1.00e+00 1.00e+00h  1
+  77  3.4610485e-04 1.98e-09 3.21e-04  -4.0 6.08e-05   0.6 1.00e+00 1.00e+00h  1
+  78  3.4402420e-04 1.10e-08 3.24e-04  -4.0 1.42e-04   0.2 1.00e+00 1.00e+00h  1
+  79  3.4499280e-04 5.64e-08 3.23e-04  -4.0 3.56e-04  -0.3 1.00e+00 1.00e+00h  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  80  3.4402565e-04 2.74e-07 1.51e-04  -4.1 7.09e-04  -0.8 1.00e+00 1.00e+00h  1
+  81  3.3631900e-04 2.27e-08 7.07e+01  -6.1 8.74e-04  -1.3 1.00e+00 1.00e+00h  1
+  82  3.2881373e-04 2.94e-08 7.07e+01  -6.1 2.63e-04  -1.8 1.00e+00 1.00e+00h  1
+  83  3.2999092e-04 4.32e-11 2.90e-02  -4.0 8.04e-06   2.3 1.00e+00 1.00e+00h  1
+  84  3.3005556e-04 3.41e-11 4.23e-04  -4.0 6.63e-06   1.8 1.00e+00 1.00e+00h  1
+  85  3.3013855e-04 5.40e-11 1.91e-04  -4.1 8.97e-06   1.3 1.00e+00 1.00e+00h  1
+  86  3.2971112e-04 2.89e-10 1.99e-04  -6.1 1.55e-05   0.9 1.00e+00 1.00e+00h  1
+  87  3.3081095e-04 7.82e-09 5.70e-04  -4.0 1.07e-04   0.4 1.00e+00 1.00e+00h  1
+  88  3.3301804e-04 1.20e-08 1.20e-04  -4.1 1.52e-04  -0.1 1.00e+00 1.00e+00h  1
+  89  3.2624417e-04 6.23e-09 5.83e-04  -6.1 3.14e-04  -0.6 1.00e+00 1.00e+00h  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  90  3.3558132e-04 1.39e-06 3.95e-03  -4.0 1.64e-03  -1.1 1.00e+00 1.00e+00h  1
+  91  3.4235882e-04 4.20e-06 2.75e-03  -4.1 3.25e-03  -1.5 1.00e+00 1.00e+00h  1
+  92  3.4120533e-04 1.96e-05 1.53e-02  -4.1 8.31e-03  -2.0 1.00e+00 1.00e+00h  1
+  93  3.4853048e-04 7.90e-05 4.41e-02  -4.1 1.87e-02  -2.5 1.00e+00 1.00e+00h  1
+  94  5.4028795e-04 1.31e-04 7.07e+01  -4.1 3.40e-02  -3.0 1.00e+00 1.00e+00h  1
+  95  4.6883327e-04 1.30e-04 4.18e-01  -4.1 6.31e-01  -2.5 3.99e-01 2.93e-03h  8
+  96  5.4123568e-04 1.02e-04 7.06e+01  -4.1 2.52e-02  -3.0 1.00e+00 2.50e-01h  3
+  97  4.5061511e-04 9.98e-05 4.78e-01  -4.1 8.40e+00  -3.5 3.47e-02 5.50e-04h  7
+  98  6.8568765e-04 8.10e-05 7.06e+01  -4.1 3.13e-02  -3.1 1.00e+00 5.00e-01h  2
+  99  5.6112915e-04 7.62e-05 4.72e-01  -4.1 3.34e+00  -3.5 1.20e-01 2.02e-03h  7
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+ 100  7.3781311e-04 1.30e-04 7.07e+01  -4.1 3.67e-02  -3.1 1.00e+00 1.00e+00h  1
+
+Number of Iterations....: 100
+
+                                   (scaled)                 (unscaled)
+Objective...............:   7.3781311208779361e-04    7.3781311208779361e-04
+Dual infeasibility......:   7.0711035025248620e+01    7.0711035025248620e+01
+Constraint violation....:   1.3014656127243590e-04    1.3014656127243590e-04
+Variable bound violation:   0.0000000000000000e+00    0.0000000000000000e+00
+Complementarity.........:   8.7829115609029527e-05    8.7829115609029527e-05
+Overall NLP error.......:   7.0711035025248620e+01    7.0711035025248620e+01
+
+
+Number of objective function evaluations             = 196
+Number of objective gradient evaluations             = 101
+Number of equality constraint evaluations            = 196
+Number of inequality constraint evaluations          = 0
+Number of equality constraint Jacobian evaluations   = 101
+Number of inequality constraint Jacobian evaluations = 0
+Number of Lagrangian Hessian evaluations             = 100
+Total seconds in IPOPT                               = 414.728
+
+EXIT: Maximum Number of Iterations Exceeded.
+</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre><pre><code class="language-julia hljs"># Let&#39;s take a look at the final fidelity
+fid_final = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+println(fid_final)
+@assert fid_final &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9999987200684024</code></pre><p>Looks good!</p><p>Now let&#39;s plot the pulse and the population trajectories for the first two columns of the unitary, i.e. initial state of <span>$\ket{00}$</span> and <span>$\ket{01}$</span>. For this we provide the function <a href="@ref"><code>plot_unitary_populations</code></a>.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob.trajectory, control_name=:a)</code></pre><img src="0d485441.png" alt="Example block output"/><p>For fun, let&#39;s look at a minimum time pulse for this problem</p><pre><code class="language-julia hljs">min_time_prob = UnitaryMinimumTimeProblem(prob, U_goal; final_fidelity=.995)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DirectTrajOptProblem
+   timesteps            = 100
+   duration             = 375.53104362185144
+   variable names       = (:Ũ⃗, :a, :da, :dda, :Δt)
+   knot point dimension = 45
+</code></pre><pre><code class="language-julia hljs">solve!(min_time_prob; max_iter=300)</code></pre><pre><code class="language-julia hljs">fid_final_min_time = unitary_rollout_fidelity(min_time_prob.trajectory, sys, drive_name=:a)
+println(fid_final_min_time)
+@assert fid_final_min_time &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9949999904078358</code></pre><p>And let&#39;s plot this solution</p><pre><code class="language-julia hljs">plot_unitary_populations(min_time_prob.trajectory, control_name=:a)</code></pre><img src="8e280739.png" alt="Example block output"/><p>It looks like our pulse derivative bounds are holding back the solution, but regardless, the duration has decreased:</p><pre><code class="language-julia hljs">duration = get_duration(prob.trajectory)
+min_time_duration = get_duration(min_time_prob.trajectory)
+println(duration, &quot; - &quot;, min_time_duration, &quot; = &quot;, duration - min_time_duration)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">375.53104362185144 - 355.48583992851627 = 20.045203693335168</code></pre><h2 id="Mølmer–Sørensen-gate"><a class="docs-heading-anchor" href="#Mølmer–Sørensen-gate">Mølmer–Sørensen gate</a><a id="Mølmer–Sørensen-gate-1"></a><a class="docs-heading-anchor-permalink" href="#Mølmer–Sørensen-gate" title="Permalink"></a></h2><p>Here we will solve for a <a href="https://en.wikipedia.org/wiki/M%C3%B8lmer%E2%80%93S%C3%B8rensen_gate">Mølmer–Sørensen gate</a> between two. The gate is generally described, for N qubits, by the unitary matrix</p><p class="math-container">\[U_{\text{MS}}(\vec\theta) = \exp\left(i\sum_{j=1}^{N-1}\sum_{k=j+1}^{N}\theta_{jk}\sigma_j^x\sigma_k^x\right),\]</p><p>where <span>$\sigma_j^x$</span> is the Pauli-X operator acting on the <span>$j$</span>-th qubit, and <span>$\vec\theta$</span> is a vector of real parameters. The Mølmer–Sørensen gate is a two-qubit gate that is particularly well-suited for trapped-ion qubits, where the interaction between qubits is mediated.</p><p>Here we will focus on the simplest case of a Mølmer–Sørensen gate between two qubits. The gate is described by the unitary matrix</p><p class="math-container">\[U_{\text{MS}}\left({\pi \over 4}\right) = \exp\left(i\frac{\pi}{4}\sigma_1^x\sigma_2^x\right).\]</p><p>Let&#39;s set up the problem.</p><pre><code class="language-julia hljs"># Define the goal operation
+U_goal = exp(im * π/4 * σx_1 * σx_2)
+
+# Set up and solve the problem
+
+prob = UnitarySmoothPulseProblem(
+    sys,
+    U_goal,
+    T,
+    Δt;
+    a_bound=a_bound,
+    da_bound=da_bound,
+    dda_bound=dda_bound,
+    R_da=0.01,
+    R_dda=0.01,
+    Δt_max=Δt_max,
+    piccolo_options=PiccoloOptions(bound_state=true),
+)
+fid_init = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+println(fid_init)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    constructing UnitarySmoothPulseProblem...
+	using integrator: typeof(UnitaryIntegrator)
+	control derivative names: [:da, :dda]
+	applying timesteps_all_equal constraint: Δt
+0.12249963901581312</code></pre><pre><code class="language-julia hljs">solve!(prob; max_iter=100)</code></pre><pre><code class="language-julia hljs"># Let&#39;s take a look at the final fidelity
+fid_final = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+println(fid_final)
+@assert fid_final &gt; 0.999</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9999999791551119</code></pre><p>Again, looks good!</p><p>Now let&#39;s plot the pulse and the population trajectories for the first two columns of the unitary, i.e. initial state of <span>$\ket{00}$</span> and <span>$\ket{01}$</span>.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob.trajectory, control_name=:a)</code></pre><img src="4d7cccc2.png" alt="Example block output"/><p>For fun, let&#39;s look at a minimum time pulse for this problem</p><pre><code class="language-julia hljs">min_time_prob = UnitaryMinimumTimeProblem(prob, U_goal; final_fidelity=.9995)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DirectTrajOptProblem
+   timesteps            = 100
+   duration             = 337.2645208164223
+   variable names       = (:Ũ⃗, :a, :da, :dda, :Δt)
+   knot point dimension = 45
+</code></pre><pre><code class="language-julia hljs">solve!(min_time_prob; max_iter=300)</code></pre><pre><code class="language-julia hljs">fid_final_min_time = unitary_rollout_fidelity(min_time_prob.trajectory, sys, drive_name=:a)
+println(fid_final_min_time)
+@assert fid_final_min_time &gt; 0.999</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9994999872727864</code></pre><p>And let&#39;s plot this solution</p><pre><code class="language-julia hljs">plot_unitary_populations(min_time_prob.trajectory, control_name=:a)</code></pre><img src="5ab0f946.png" alt="Example block output"/><p>It looks like our pulse derivative bounds are holding back the solution, but regardless, the duration has decreased:</p><pre><code class="language-julia hljs">duration = get_duration(prob.trajectory)
+min_time_duration = get_duration(min_time_prob.trajectory)
+println(duration, &quot; - &quot;, min_time_duration, &quot; = &quot;, duration - min_time_duration)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">337.2645208164223 - 247.87559278517617 = 89.38892803124614</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../man/unitary_problem_templates/">« Unitary Problem Templates</a><a class="docs-footer-nextpage" href="../multilevel_transmon/">Multilevel Transmon »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Saturday 1 November 2025 00:41">Saturday 1 November 2025</span>. Using Julia version 1.12.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
