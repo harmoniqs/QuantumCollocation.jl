@@ -12,7 +12,6 @@ using DirectTrajOpt
 using PiccoloQuantumObjects
 
 using ExponentialAction
-using JLD2
 using LinearAlgebra
 using SparseArrays
 using TestItems
