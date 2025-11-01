@@ -82,9 +82,11 @@ pkg> add QuantumCollocation
 ```Julia
 using QuantumCollocation
 
+T_max = 1.0
+u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 T = 50
 Δt = 0.2
-system = QuantumSystem([PAULIS[:X], PAULIS[:Y]])
+system = QuantumSystem([PAULIS[:X], PAULIS[:Y]], T_max, u_bounds)
 U_goal = GATES.H
 
 # Hadamard Gate

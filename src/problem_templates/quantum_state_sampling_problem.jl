@@ -53,6 +53,11 @@ function QuantumStateSamplingProblem(
     if !isnothing(init_trajectory)
         traj = init_trajectory
     else
+        # TODO(main issue with this is that it doesn't handle composite systems correctly, will come back to this.
+        u_bounds = (
+            [systems[1].drive_bounds[j][1] for j in 1:length(systems[1].drive_bounds)],
+            [systems[1].drive_bounds[j][2] for j in 1:length(systems[1].drive_bounds)]
+        )
         trajs = map(zip(systems, state_names, ψ_inits, ψ_goals)) do (sys, names, ψis, ψgs)
             initialize_trajectory(
                 ψis,
@@ -155,9 +160,11 @@ end
     using PiccoloQuantumObjects
 
     T = 50
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
-    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
-    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
+    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
     
@@ -173,13 +180,13 @@ end
     # Separately compute all unique initial and goal state fidelities
     inits = []
     for sys in [sys1, sys2]
-        push!(inits, [rollout_fidelity(prob.trajectory, sys; state_name=n) for n in state_names])
+        push!(inits, [rollout_fidelity(prob.trajectory, sys; state_name=n, control_name=:a) for n in state_names])
     end
     
     solve!(prob, max_iter=20, print_level=1, verbose=false)
         
     for (init, sys) in zip(inits, [sys1, sys2])
-        final = [rollout_fidelity(prob.trajectory, sys, state_name=n) for n in state_names]
+        final = [rollout_fidelity(prob.trajectory, sys, state_name=n, control_name=:a) for n in state_names]
         @test all(final .> init)
     end
 end
@@ -188,33 +195,35 @@ end
     using PiccoloQuantumObjects
 
     T = 50
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
-    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
-    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
-    
+    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
+    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
+
     # Multiple initial and target states
     ψ_inits = Vector{ComplexF64}.([[1.0, 0.0], [0.0, 1.0]])
     ψ_targets = Vector{ComplexF64}.([[0.0, 1.0], [1.0, 0.0]])
-    
+
     prob = QuantumStateSamplingProblem(
         [sys1, sys2], ψ_inits, ψ_targets, T, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
-    
+
     state_name = :ψ̃
     state_names = [n for n ∈ prob.trajectory.names if startswith(string(n), string(state_name))]
     sys_state_names = [n for n ∈ state_names if endswith(string(n), "1")]
-    
+
     # Separately compute all unique initial and goal state fidelities
     inits = []
     for sys in [sys1, sys2]
-        push!(inits, [rollout_fidelity(prob.trajectory, sys; state_name=n) for n in state_names])
+        push!(inits, [rollout_fidelity(prob.trajectory, sys; state_name=n, control_name=:a) for n in state_names])
     end
-    
+
     solve!(prob, max_iter=20, print_level=1, verbose=false)
-        
+
     for (init, sys) in zip(inits, [sys1, sys2])
-        final = [rollout_fidelity(prob.trajectory, sys, state_name=n) for n in state_names]
+        final = [rollout_fidelity(prob.trajectory, sys, state_name=n, control_name=:a) for n in state_names]
         @test all(final .> init)
     end
 end

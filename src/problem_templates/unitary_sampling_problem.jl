@@ -172,11 +172,13 @@ end
     using PiccoloQuantumObjects
 
     T = 50
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
     Δt = 0.2
     timesteps = fill(Δt, T)
     operator = GATES[:H]
-    systems(ζ) = QuantumSystem(ζ * GATES[:Z], [GATES[:X], GATES[:Y]])
-    
+    systems(ζ) = QuantumSystem(ζ * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
+
     samples = [0.0, 0.1]
     prob = UnitarySamplingProblem(
         [systems(x) for x in samples], operator, T, Δt,
@@ -193,8 +195,8 @@ end
     fid = []
     base_fid = []
     for x in range(samples[1], samples[1], length=5)
-        push!(fid, unitary_rollout_fidelity(prob.trajectory, systems(0.1), unitary_name=:Ũ⃗_system_1))
-        push!(base_fid, unitary_rollout_fidelity(base_prob.trajectory, systems(0.1)))
+        push!(fid, unitary_rollout_fidelity(prob.trajectory, systems(0.1), unitary_name=:Ũ⃗_system_1, drive_name=:a))
+        push!(base_fid, unitary_rollout_fidelity(base_prob.trajectory, systems(0.1), drive_name=:a))
     end
     @test sum(fid) > sum(base_fid)
 end

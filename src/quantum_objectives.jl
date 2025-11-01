@@ -162,7 +162,7 @@ function LeakageObjective(
     indices::AbstractVector{Int},
     name::Symbol,
     traj::NamedTrajectory;
-    times=1:traj.T,
+    times=1:traj.N,
     Qs::AbstractVector{<:Float64}=fill(1.0, length(times)),
 )
     leakage_objective(x) = sum(abs2, x[indices]) / length(indices)

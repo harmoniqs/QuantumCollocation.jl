@@ -130,8 +130,10 @@ end
 
 @testitem "UnitaryFreePhaseProblem: basic construction" begin
     using PiccoloQuantumObjects
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0)]
 
-    sys = QuantumSystem(0.3 * PAULIS.X, [PAULIS.Y])
+    sys = QuantumSystem(0.3 * PAULIS.X, [PAULIS.Y], T_max, u_bounds)
     U_goal = GATES.Z
     T = 51
     Δt = 0.2

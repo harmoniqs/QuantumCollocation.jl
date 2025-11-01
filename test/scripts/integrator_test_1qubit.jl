@@ -6,11 +6,13 @@ using BenchmarkTools
 using LinearAlgebra
 
 T = 100
+T_max = 1.0
+u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 H_drift = GATES[:Z]
 H_drives = [GATES[:X], GATES[:Y]]
 n_drives = length(H_drives)
 
-system = QuantumSystem(H_drift, H_drives)
+system = QuantumSystem(H_drift, H_drives, T_max, u_bounds)
 
 U_init = I(2)
 U_goal = GATES[:X]

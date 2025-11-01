@@ -210,9 +210,11 @@ end
 @testitem "Sensitive and robust" begin
     using LinearAlgebra
     using PiccoloQuantumObjects
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 
-    system = QuantumSystem([PAULIS.X, PAULIS.Y])
-    varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [PAULIS.X] )
+    system = QuantumSystem([PAULIS.X, PAULIS.Y], T_max, u_bounds)
+    varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [PAULIS.X], T_max, u_bounds)
     T = 50
     Δt = 0.2
 
