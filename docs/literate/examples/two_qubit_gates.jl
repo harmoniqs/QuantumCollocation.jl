@@ -13,7 +13,7 @@
 # Specifically, for a simple two-qubit system in a rotating frame, we have
 
 # ```math
-# H = J_{12} \sigma_1^x \sigma_2^x + \sum_{i \in {1,2}} a_i^R(t) {\sigma^x_i \over 2} + a_i^I(t) {\sigma^y_i \over 2}.
+# H = J_{12} \sigma_1^x \sigma_2^x + \sum_{i \in {1,2}} u_i^R(t) {\sigma^x_i \over 2} + u_i^I(t) {\sigma^y_i \over 2}.
 # ```
 
 # where
@@ -21,7 +21,7 @@
 # ```math
 # \begin{align*}
 # J_{12} &= 0.001 \text{ GHz}, \\
-# |a_i^R(t)| &\leq 0.1 \text{ GHz} \\
+# |u_i^R(t)| &\leq 0.1 \text{ GHz} \\
 # \end{align*}
 # ```
 
@@ -53,7 +53,7 @@ Id = GATES[:I]
 
 ## Define the parameters of the Hamiltonian
 J_12 = 0.001 # GHz
-a_bound = 0.100 # GHz
+u_bound = 0.100 # GHz
 
 ## Define the drift (coupling) Hamiltonian
 H_drift = J_12 * (σx ⊗ σx)
@@ -62,9 +62,9 @@ H_drift = J_12 * (σx ⊗ σx)
 H_drives = [σx_1 / 2, σy_1 / 2, σx_2 / 2, σy_2 / 2]
 
 ## Define control (and higher derivative) bounds
-a_bound = 0.1
-da_bound = 0.0005
-dda_bound = 0.0025
+u_bound = 0.1
+du_bound = 0.0005
+ddu_bound = 0.0025
 
 ## Scale the Hamiltonians by 2π
 H_drift *= 2π
@@ -95,11 +95,11 @@ prob = UnitarySmoothPulseProblem(
     U_goal,
     T,
     Δt;
-    a_bound=a_bound,
-    da_bound=da_bound,
-    dda_bound=dda_bound,
-    R_da=0.01,
-    R_dda=0.01,
+    u_bound=u_bound,
+    du_bound=du_bound,
+    ddu_bound=ddu_bound,
+    R_du=0.01,
+    R_ddu=0.01,
     Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
@@ -739,11 +739,11 @@ prob = UnitarySmoothPulseProblem(
     U_goal,
     T,
     Δt;
-    a_bound=a_bound,
-    da_bound=da_bound,
-    dda_bound=dda_bound,
-    R_da=0.01,
-    R_dda=0.01,
+    u_bound=u_bound,
+    du_bound=du_bound,
+    ddu_bound=ddu_bound,
+    R_du=0.01,
+    R_ddu=0.01,
     Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )

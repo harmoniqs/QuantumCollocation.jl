@@ -89,14 +89,14 @@ end
     using NamedTrajectories
     using PiccoloQuantumObjects 
 
-    T = 51
+    N = 51
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     ψ_init = Vector{ComplexF64}[[1.0, 0.0]]
     ψ_target = Vector{ComplexF64}[[0.0, 1.0]]
 
     prob = QuantumStateSmoothPulseProblem(
-        sys, ψ_init, ψ_target, T, Δt;
+        sys, ψ_init, ψ_target, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     initial = sum(get_timesteps(prob.trajectory))

@@ -1,14 +1,14 @@
 export QuantumStateSmoothPulseProblem
 
 """
-    QuantumStateSmoothPulseProblem(system, ψ_inits, ψ_goals, T, Δt; kwargs...)
-    QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, T, Δt; kwargs...)
+    QuantumStateSmoothPulseProblem(system, ψ_inits, ψ_goals, N, Δt; kwargs...)
+    QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, N, Δt; kwargs...)
     QuantumStateSmoothPulseProblem(H_drift, H_drives, args...; kwargs...)
 
-Create a quantum state smooth pulse problem. The goal is to find a control pulse `a(t)` 
+Create a quantum state smooth pulse problem. The goal is to find a control pulse `u(t)` 
 that drives all of the initial states `ψ_inits` to the corresponding target states 
-`ψ_goals` using `T` timesteps of size `Δt`. This problem also controls the  first and 
-second derivatives of the control pulse, `da(t)` and `dda(t)`, to ensure smoothness.
+`ψ_goals` using `N` knot points of size `Δt`. This problem also controls the  first and 
+second derivatives of the control pulse, `u̇(t)` and `ü(t)`, to ensure smoothness.
 
 # Arguments
 - `system::AbstractQuantumSystem`: The quantum system.
@@ -22,30 +22,32 @@ or
 - `ψ_init::AbstractVector{<:ComplexF64}`: The initial state.
 - `ψ_goal::AbstractVector{<:ComplexF64}`: The target state.
 with
-- `T::Int`: The number of timesteps.
+- `N::Int`: The number of knot points.
 - `Δt::Float64`: The timestep size.
 
 
 # Keyword Arguments
+- `ket_integrator=KetIntegrator`: the integrator to use for state dynamics
+- `time_dependent_integrator=false`: whether to use time-dependent integrator
 - `state_name::Symbol=:ψ̃`: The name of the state variable.
-- `control_name::Symbol=:a`: The name of the control variable.
+- `control_name::Symbol=:u`: The name of the control variable.
 - `timestep_name::Symbol=:Δt`: The name of the timestep variable.
 - `init_trajectory::Union{NamedTrajectory, Nothing}=nothing`: The initial trajectory.
-- `a_bound::Float64=1.0`: The bound on the control pulse.
-- `a_bounds=fill(a_bound, length(system.G_drives))`: The bounds on the control pulse.
-- `a_guess::Union{Matrix{Float64}, Nothing}=nothing`: The initial guess for the control pulse.
-- `da_bound::Float64=Inf`: The bound on the first derivative of the control pulse.
-- `da_bounds=fill(da_bound, length(system.G_drives))`: The bounds on the first derivative of the control pulse.
-- `dda_bound::Float64=1.0`: The bound on the second derivative of the control pulse.
-- `dda_bounds=fill(dda_bound, length(system.G_drives))`: The bounds on the second derivative of the control pulse.
-- `Δt_min::Float64=0.5 * Δt`: The minimum timestep size.
-- `Δt_max::Float64=1.5 * Δt`: The maximum timestep size.
-- `drive_derivative_σ::Float64=0.01`: The standard deviation of the drive derivative random initialization.
+- `u_bound::Float64=1.0`: The bound on the control pulse.
+- `u_bounds=fill(u_bound, sys.n_drives)`: The bounds on the control pulse.
+- `u_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing`: The initial guess for the control pulse.
+- `du_bound::Float64=Inf`: The bound on the first derivative of the control pulse.
+- `du_bounds=fill(du_bound, sys.n_drives)`: The bounds on the first derivative of the control pulse.
+- `ddu_bound::Float64=1.0`: The bound on the second derivative of the control pulse.
+- `ddu_bounds=fill(ddu_bound, sys.n_drives)`: The bounds on the second derivative of the control pulse.
+- `Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt)`: The minimum timestep size.
+- `Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt)`: The maximum timestep size.
 - `Q::Float64=100.0`: The weight on the state objective.
 - `R=1e-2`: The weight on the control pulse and its derivatives.
-- `R_a::Union{Float64, Vector{Float64}}=R`: The weight on the control pulse.
-- `R_da::Union{Float64, Vector{Float64}}=R`: The weight on the first derivative of the control pulse.
-- `R_dda::Union{Float64, Vector{Float64}}=R`: The weight on the second derivative of the control pulse.
+- `R_u::Union{Float64, Vector{Float64}}=R`: The weight on the control pulse.
+- `R_du::Union{Float64, Vector{Float64}}=R`: The weight on the first derivative of the control pulse.
+- `R_ddu::Union{Float64, Vector{Float64}}=R`: The weight on the second derivative of the control pulse.
+- `state_leakage_indices::Union{Nothing, AbstractVector{Int}}=nothing`: Indices of leakage states.
 - `constraints::Vector{<:AbstractConstraint}=AbstractConstraint[]`: The constraints.
 - `piccolo_options::PiccoloOptions=PiccoloOptions()`: The Piccolo options.
 """
@@ -55,27 +57,28 @@ function QuantumStateSmoothPulseProblem(
     sys::AbstractQuantumSystem,
     ψ_inits::Vector{<:AbstractVector{<:ComplexF64}},
     ψ_goals::Vector{<:AbstractVector{<:ComplexF64}},
-    T::Int,
+    N::Int,
     Δt::Union{Float64, <:AbstractVector{Float64}};
     ket_integrator=KetIntegrator,
+    time_dependent_integrator=false,
     state_name::Symbol=:ψ̃,
-    control_name::Symbol=:a,
+    control_name::Symbol=:u,
     timestep_name::Symbol=:Δt,
     init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
-    a_bound::Float64=1.0,
-    a_bounds=fill(a_bound, sys.n_drives),
-    a_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing,
-    da_bound::Float64=Inf,
-    da_bounds=fill(da_bound, sys.n_drives),
-    dda_bound::Float64=1.0,
-    dda_bounds=fill(dda_bound, sys.n_drives),
-    Δt_min::Float64=0.5 * minimum(Δt),
-    Δt_max::Float64=2.0 * maximum(Δt),
+    u_bound::Float64=1.0,
+    u_bounds=fill(u_bound, sys.n_drives),
+    u_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing,
+    du_bound::Float64=Inf,
+    du_bounds=fill(du_bound, sys.n_drives),
+    ddu_bound::Float64=1.0,
+    ddu_bounds=fill(ddu_bound, sys.n_drives),
+    Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt),
+    Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt),
     Q::Float64=100.0,
     R=1e-2,
-    R_a::Union{Float64, Vector{Float64}}=R,
-    R_da::Union{Float64, Vector{Float64}}=R,
-    R_dda::Union{Float64, Vector{Float64}}=R,
+    R_u::Union{Float64, Vector{Float64}}=R,
+    R_du::Union{Float64, Vector{Float64}}=R,
+    R_ddu::Union{Float64, Vector{Float64}}=R,
     state_leakage_indices::Union{Nothing, AbstractVector{Int}}=nothing,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
     piccolo_options::PiccoloOptions=PiccoloOptions(),
@@ -95,19 +98,20 @@ function QuantumStateSmoothPulseProblem(
         traj = initialize_trajectory(
             ψ_goals,
             ψ_inits,
-            T,
+            N,
             Δt,
             sys.n_drives,
-            (a_bounds, da_bounds, dda_bounds);
+            (u_bounds, du_bounds, ddu_bounds);
             state_name=state_name,
             control_name=control_name,
             timestep_name=timestep_name,
             zero_initial_and_final_derivative=piccolo_options.zero_initial_and_final_derivative,
             Δt_bounds=(Δt_min, Δt_max),
             bound_state=piccolo_options.bound_state,
-            a_guess=a_guess,
+            u_guess=u_guess,
             system=sys,
             rollout_integrator=piccolo_options.rollout_integrator,
+            store_times=time_dependent_integrator
         )
     end
 
@@ -123,9 +127,9 @@ function QuantumStateSmoothPulseProblem(
     ]
 
     # Objective
-    J = QuadraticRegularizer(control_names[1], traj, R_a)
-    J += QuadraticRegularizer(control_names[2], traj, R_da)
-    J += QuadraticRegularizer(control_names[3], traj, R_dda)
+    J = QuadraticRegularizer(control_names[1], traj, R_u)
+    J += QuadraticRegularizer(control_names[2], traj, R_du)
+    J += QuadraticRegularizer(control_names[3], traj, R_ddu)
 
     for name ∈ state_names
         J += KetInfidelityObjective(name, traj; Q=Q)
@@ -146,10 +150,8 @@ function QuantumStateSmoothPulseProblem(
     state_integrators = []
 
     for name ∈ state_names
-        push!(
-            state_integrators, 
-            ket_integrator(sys, traj, name, control_name)
-        )
+        integrator_ = ket_integrator(sys, traj, name, control_name)
+        push!(state_integrators, integrator_)
     end
 
     integrators = [
@@ -191,16 +193,16 @@ end
 @testitem "Test quantum state smooth pulse" begin
     using PiccoloQuantumObjects 
 
-    T = 51
+    N = 51
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
     
     # Single initial and target states
     # --------------------------------
     prob = QuantumStateSmoothPulseProblem(
-        sys, ψ_init, ψ_target, T, Δt;
+        sys, ψ_init, ψ_target, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     initial = rollout_fidelity(prob.trajectory, sys)
@@ -212,14 +214,14 @@ end
 @testitem "Test multiple quantum states smooth pulse" begin
     using PiccoloQuantumObjects 
 
-    T = 50
+    N = 50
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     ψ_inits = Vector{ComplexF64}.([[1.0, 0.0], [0.0, 1.0]])
     ψ_targets = Vector{ComplexF64}.([[0.0, 1.0], [1.0, 0.0]])
 
     prob = QuantumStateSmoothPulseProblem(
-        sys, ψ_inits, ψ_targets, T, Δt;
+        sys, ψ_inits, ψ_targets, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     initial = rollout_fidelity(prob.trajectory, sys)

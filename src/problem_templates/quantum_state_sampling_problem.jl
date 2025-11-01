@@ -1,7 +1,41 @@
 export QuantumStateSamplingProblem
 
 """
+    QuantumStateSamplingProblem(systems, ψ_inits, ψ_goals, T, Δt; kwargs...)
 
+Construct a quantum state sampling problem for multiple systems with shared controls.
+
+# Arguments
+- `systems::AbstractVector{<:AbstractQuantumSystem}`: A vector of quantum systems.
+- `ψ_inits::AbstractVector{<:AbstractVector{<:AbstractVector{<:ComplexF64}}}`: Initial states for each system.
+- `ψ_goals::AbstractVector{<:AbstractVector{<:AbstractVector{<:ComplexF64}}}`: Target states for each system.
+- `T::Int`: The number of time steps.
+- `Δt::Union{Float64, AbstractVector{Float64}}`: The time step value or vector of time steps.
+
+# Keyword Arguments
+- `ket_integrator=KetIntegrator`: The integrator to use for state dynamics.
+- `system_weights=fill(1.0, length(systems))`: The weights for each system.
+- `init_trajectory::Union{NamedTrajectory,Nothing}=nothing`: The initial trajectory.
+- `state_name::Symbol=:ψ̃`: The name of the state variable.
+- `control_name::Symbol=:u`: The name of the control variable.
+- `timestep_name::Symbol=:Δt`: The name of the timestep variable.
+- `u_bound::Float64=1.0`: The bound for the control amplitudes.
+- `u_bounds=fill(u_bound, systems[1].n_drives)`: The bounds for the control amplitudes.
+- `u_guess::Union{Matrix{Float64},Nothing}=nothing`: The initial guess for the control amplitudes.
+- `du_bound::Float64=Inf`: The bound for the control first derivatives.
+- `du_bounds=fill(du_bound, systems[1].n_drives)`: The bounds for the control first derivatives.
+- `ddu_bound::Float64=1.0`: The bound for the control second derivatives.
+- `ddu_bounds=fill(ddu_bound, systems[1].n_drives)`: The bounds for the control second derivatives.
+- `Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt)`: The minimum time step size.
+- `Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt)`: The maximum time step size.
+- `Q::Float64=100.0`: The fidelity weight.
+- `R::Float64=1e-2`: The regularization weight.
+- `R_u::Union{Float64,Vector{Float64}}=R`: The regularization weight for the control amplitudes.
+- `R_du::Union{Float64,Vector{Float64}}=R`: The regularization weight for the control first derivatives.
+- `R_ddu::Union{Float64,Vector{Float64}}=R`: The regularization weight for the control second derivatives.
+- `state_leakage_indices::Union{Nothing, AbstractVector{Int}}=nothing`: Indices of leakage states.
+- `constraints::Vector{<:AbstractConstraint}=AbstractConstraint[]`: The constraints.
+- `piccolo_options::PiccoloOptions=PiccoloOptions()`: The Piccolo options.
 """
 function QuantumStateSamplingProblem end
 
@@ -15,22 +49,22 @@ function QuantumStateSamplingProblem(
     system_weights=fill(1.0, length(systems)),
     init_trajectory::Union{NamedTrajectory,Nothing}=nothing,
     state_name::Symbol=:ψ̃,
-    control_name::Symbol=:a,
+    control_name::Symbol=:u,
     timestep_name::Symbol=:Δt,
-    a_bound::Float64=1.0,
-    a_bounds=fill(a_bound, systems[1].n_drives),
-    a_guess::Union{Matrix{Float64},Nothing}=nothing,
-    da_bound::Float64=Inf,
-    da_bounds=fill(da_bound, systems[1].n_drives),
-    dda_bound::Float64=1.0,
-    dda_bounds=fill(dda_bound, systems[1].n_drives),
-    Δt_min::Float64=0.5 * minimum(Δt),
-    Δt_max::Float64=2.0 * maximum(Δt),
+    u_bound::Float64=1.0,
+    u_bounds=fill(u_bound, systems[1].n_drives),
+    u_guess::Union{Matrix{Float64},Nothing}=nothing,
+    du_bound::Float64=Inf,
+    du_bounds=fill(du_bound, systems[1].n_drives),
+    ddu_bound::Float64=1.0,
+    ddu_bounds=fill(ddu_bound, systems[1].n_drives),
+    Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt),
+    Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt),
     Q::Float64=100.0,
-    R=1e-2,
-    R_a::Union{Float64,Vector{Float64}}=R,
-    R_da::Union{Float64,Vector{Float64}}=R,
-    R_dda::Union{Float64,Vector{Float64}}=R,
+    R::Float64=1e-2,
+    R_u::Union{Float64,Vector{Float64}}=R,
+    R_du::Union{Float64,Vector{Float64}}=R,
+    R_ddu::Union{Float64,Vector{Float64}}=R,
     state_leakage_indices::Union{Nothing, AbstractVector{Int}}=nothing,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
     piccolo_options::PiccoloOptions=PiccoloOptions(),
@@ -60,21 +94,21 @@ function QuantumStateSamplingProblem(
                 T,
                 Δt,
                 sys.n_drives,
-                (a_bounds, da_bounds, dda_bounds);
+                (u_bounds, du_bounds, ddu_bounds);
                 state_names=names,
                 control_name=control_name,
                 timestep_name=timestep_name,
                 Δt_bounds=(Δt_min, Δt_max),
                 zero_initial_and_final_derivative=piccolo_options.zero_initial_and_final_derivative,
                 bound_state=piccolo_options.bound_state,
-                a_guess=a_guess,
+                u_guess=u_guess,
                 system=sys,
                 rollout_integrator=piccolo_options.rollout_integrator,
                 verbose=false # loop
             )
         end
 
-        traj = merge(trajs, merge_names=(a=1, da=1, dda=1, Δt=1), timestep=timestep_name)
+        traj = merge(trajs, merge_names=(u=1, du=1, ddu=1, Δt=1), timestep=timestep_name)
     end
 
     control_names = [
@@ -83,9 +117,9 @@ function QuantumStateSamplingProblem(
     ]
 
     # Objective
-    J = QuadraticRegularizer(control_names[1], traj, R_a)
-    J += QuadraticRegularizer(control_names[2], traj, R_da)
-    J += QuadraticRegularizer(control_names[3], traj, R_dda)
+    J = QuadraticRegularizer(control_names[1], traj, R_u)
+    J += QuadraticRegularizer(control_names[2], traj, R_du)
+    J += QuadraticRegularizer(control_names[3], traj, R_ddu)
     
     for (weight, names) in zip(system_weights, state_names)
         for name in names
@@ -154,15 +188,15 @@ end
 @testitem "Sample systems with single initial, target" begin
     using PiccoloQuantumObjects
 
-    T = 50
+    N = 50
     Δt = 0.2
-    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
-    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
     
     prob = QuantumStateSamplingProblem(
-        [sys1, sys2], ψ_init, ψ_target, T, Δt;
+        [sys1, sys2], ψ_init, ψ_target, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     
@@ -187,17 +221,17 @@ end
 @testitem "Sample systems with multiple initial, target" begin
     using PiccoloQuantumObjects
 
-    T = 50
+    N = 50
     Δt = 0.2
-    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
-    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]])
+    sys1 = QuantumSystem(0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     
     # Multiple initial and target states
     ψ_inits = Vector{ComplexF64}.([[1.0, 0.0], [0.0, 1.0]])
     ψ_targets = Vector{ComplexF64}.([[0.0, 1.0], [1.0, 0.0]])
     
     prob = QuantumStateSamplingProblem(
-        [sys1, sys2], ψ_inits, ψ_targets, T, Δt;
+        [sys1, sys2], ψ_inits, ψ_targets, N, Δt;
         piccolo_options=PiccoloOptions(verbose=false)
     )
     
@@ -219,4 +253,5 @@ end
     end
 end
 
-# TODO: Test that a_guess can be used
+# TODO: Test that u_guess can be used
+

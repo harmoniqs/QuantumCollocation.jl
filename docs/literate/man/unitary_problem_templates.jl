@@ -61,7 +61,7 @@ The `NamedTrajectory` object stores the control pulse, state variables, and the 
 =#
 
 # _extract the control pulses_
-prob.trajectory.a |> size
+prob.trajectory.u |> size
 
 # -----
 

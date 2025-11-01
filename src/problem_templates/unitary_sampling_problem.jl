@@ -17,27 +17,28 @@ robust solution by including multiple systems reflecting the problem uncertainty
 - `Δt::Union{Float64, Vector{Float64}}`: The time step value or vector of time steps.
 
 # Keyword Arguments
-- `system_labels::Vector{String} = string.(1:length(systems))`: The labels for each system.
-- `system_weights::Vector{Float64} = fill(1.0, length(systems))`: The weights for each system.
+- `unitary_integrator=UnitaryIntegrator`: The integrator to use for unitary dynamics.
+- `system_weights=fill(1.0, length(systems))`: The weights for each system.
 - `init_trajectory::Union{NamedTrajectory, Nothing} = nothing`: The initial trajectory.
-- `state_name::Symbol = :Ũ⃗`: The name of the state variable.
-- `control_name::Symbol = :a`: The name of the control variable.
+- `piccolo_options::PiccoloOptions = PiccoloOptions()`: The Piccolo options.
+- `state_name::Symbol = :Ũ⃗`: The name of the state variable.
+- `control_name::Symbol = :u`: The name of the control variable.
 - `timestep_name::Symbol = :Δt`: The name of the timestep variable.
 - `constraints::Vector{<:AbstractConstraint} = AbstractConstraint[]`: The constraints.
-- `a_bound::Float64 = 1.0`: The bound for the control amplitudes.
-- `a_bounds = fill(a_bound, length(systems[1].G_drives))`: The bounds for the control amplitudes.
-- `a_guess::Union{Matrix{Float64}, Nothing} = nothing`: The initial guess for the control amplitudes.
-- `da_bound::Float64 = Inf`: The bound for the control first derivatives.
-- `da_bounds = fill(da_bound, length(systems[1].G_drives))`: The bounds for the control first derivatives.
-- `dda_bound::Float64 = 1.0`: The bound for the control second derivatives.
-- `dda_bounds = fill(dda_bound, length(systems[1].G_drives))`: The bounds for the control second derivatives.
-- `Δt_min::Float64 = 0.5 * Δt`: The minimum time step size.
-- `Δt_max::Float64 = 1.5 * Δt`: The maximum time step size.
+- `u_bound::Float64 = 1.0`: The bound for the control amplitudes.
+- `u_bounds = fill(u_bound, systems[1].n_drives)`: The bounds for the control amplitudes.
+- `u_guess::Union{Matrix{Float64}, Nothing} = nothing`: The initial guess for the control amplitudes.
+- `du_bound::Float64 = Inf`: The bound for the control first derivatives.
+- `du_bounds = fill(du_bound, systems[1].n_drives)`: The bounds for the control first derivatives.
+- `ddu_bound::Float64 = 1.0`: The bound for the control second derivatives.
+- `ddu_bounds = fill(ddu_bound, systems[1].n_drives)`: The bounds for the control second derivatives.
+- `Δt_min::Float64 = Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt)`: The minimum time step size.
+- `Δt_max::Float64 = Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt)`: The maximum time step size.
 - `Q::Float64 = 100.0`: The fidelity weight.
 - `R::Float64 = 1e-2`: The regularization weight.
-- `R_a::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control amplitudes.
-- `R_da::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control first derivatives.
-- `R_dda::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control second derivatives.
+- `R_u::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control amplitudes.
+- `R_du::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control first derivatives.
+- `R_ddu::Union{Float64, Vector{Float64}} = R`: The regularization weight for the control second derivatives.
 - `piccolo_options::PiccoloOptions = PiccoloOptions()`: The Piccolo options.
 
 """
@@ -48,26 +49,26 @@ function UnitarySamplingProblem(
     Δt::Union{Float64,Vector{Float64}};
     unitary_integrator=UnitaryIntegrator,
     system_weights=fill(1.0, length(systems)),
-    init_trajectory::Union{NamedTrajectory,Nothing}=nothing,
-    piccolo_options::PiccoloOptions=PiccoloOptions(),
-    state_name::Symbol=:Ũ⃗,
-    control_name::Symbol=:a,
+    init_trajectory::Union{NamedTrajectory, Nothing} = nothing,
+    piccolo_options::PiccoloOptions = PiccoloOptions(),
+    state_name::Symbol = :Ũ⃗,
+    control_name::Symbol=:u,
     timestep_name::Symbol=:Δt,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
-    a_bound::Float64=1.0,
-    a_bounds=fill(a_bound, systems[1].n_drives),
-    a_guess::Union{Matrix{Float64},Nothing}=nothing,
-    da_bound::Float64=Inf,
-    da_bounds=fill(da_bound, systems[1].n_drives),
-    dda_bound::Float64=1.0,
-    dda_bounds=fill(dda_bound, systems[1].n_drives),
-    Δt_min::Float64=0.5 * minimum(Δt),
-    Δt_max::Float64=2.0 * maximum(Δt),
+    u_bound::Float64=1.0,
+    u_bounds=fill(u_bound, systems[1].n_drives),
+    u_guess::Union{Matrix{Float64}, Nothing}=nothing,
+    du_bound::Float64=Inf,
+    du_bounds=fill(du_bound, systems[1].n_drives),
+    ddu_bound::Float64=1.0,
+    ddu_bounds=fill(ddu_bound, systems[1].n_drives),
+    Δt_min::Float64=Δt isa Float64 ? 0.5 * Δt : 0.5 * minimum(Δt),
+    Δt_max::Float64=Δt isa Float64 ? 2.0 * Δt : 2.0 * maximum(Δt),
     Q::Float64=100.0,
-    R=1e-2,
-    R_a::Union{Float64,Vector{Float64}}=R,
-    R_da::Union{Float64,Vector{Float64}}=R,
-    R_dda::Union{Float64,Vector{Float64}}=R,
+    R::Float64=1e-2,
+    R_u::Union{Float64,Vector{Float64}}=R,
+    R_du::Union{Float64,Vector{Float64}}=R,
+    R_ddu::Union{Float64,Vector{Float64}}=R,
     kwargs...
 )
     @assert length(systems) == length(operators)
@@ -92,14 +93,14 @@ function UnitarySamplingProblem(
                 T,
                 Δt,
                 sys.n_drives,
-                (a_bounds, da_bounds, dda_bounds);
+                (u_bounds, du_bounds, ddu_bounds);
                 state_name=st,
                 control_name=control_name,
                 timestep_name=timestep_name,
                 Δt_bounds=(Δt_min, Δt_max),
                 geodesic=piccolo_options.geodesic,
                 bound_state=piccolo_options.bound_state,
-                a_guess=a_guess,
+                u_guess=u_guess,
                 system=sys,
                 rollout_integrator=piccolo_options.rollout_integrator,
                 verbose=false # loop
@@ -107,7 +108,7 @@ function UnitarySamplingProblem(
         end
 
         traj = merge(
-            trajs, merge_names=(a=1, da=1, dda=1, Δt=1), timestep=timestep_name
+            trajs, merge_names=(u=1, du=1, ddu=1, Δt=1), timestep=timestep_name
         )
     end
 
@@ -117,9 +118,9 @@ function UnitarySamplingProblem(
     ]
 
     # Objective
-    J = QuadraticRegularizer(control_name, traj, R_a)
-    J += QuadraticRegularizer(control_names[2], traj, R_da)
-    J += QuadraticRegularizer(control_names[3], traj, R_dda)
+    J = QuadraticRegularizer(control_name, traj, R_u)
+    J += QuadraticRegularizer(control_names[2], traj, R_du)
+    J += QuadraticRegularizer(control_names[3], traj, R_ddu)
 
     for (weight, op, name) in zip(system_weights, operators, state_names)
         J += UnitaryInfidelityObjective(op, name, traj; Q=weight * Q)
@@ -171,21 +172,21 @@ end
 @testitem "Sample robustness test" begin
     using PiccoloQuantumObjects
 
-    T = 50
+    N = 50
     Δt = 0.2
-    timesteps = fill(Δt, T)
+    timesteps = fill(Δt, N)
     operator = GATES[:H]
-    systems(ζ) = QuantumSystem(ζ * GATES[:Z], [GATES[:X], GATES[:Y]])
+    systems(ζ) = QuantumSystem(ζ * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
     
     samples = [0.0, 0.1]
     prob = UnitarySamplingProblem(
-        [systems(x) for x in samples], operator, T, Δt,
+        [systems(x) for x in samples], operator, N, Δt,
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(prob, max_iter=100, print_level=1, verbose=false)
     
     base_prob = UnitarySmoothPulseProblem(
-        systems(samples[1]), operator, T, Δt,
+        systems(samples[1]), operator, N,
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(base_prob, max_iter=100, verbose=false, print_level=1)

@@ -60,7 +60,7 @@ nothing # hide
 println("After: ", rollout_fidelity(state_prob.trajectory, system, control_name=:a))
 
 # _extract the control pulses_
-state_prob.trajectory.a |> size
+state_prob.trajectory.u |> size
 
 # -----
 
