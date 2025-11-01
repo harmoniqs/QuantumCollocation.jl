@@ -29,3 +29,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ssh: ${{ secrets.DOCUMENTER_KEY }}
+      - name: Re-trigger docs build
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: tagbot-release-created
