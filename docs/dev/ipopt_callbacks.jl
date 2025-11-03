@@ -38,9 +38,11 @@ my_callback = (kwargs...) -> false
 
 # Single initial and target states
 # --------------------------------
+T_max = 1.0
+u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 T = 50
 Δt = 0.2
-sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]])
+sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
 ψ_init =  Vector{ComplexF64}([1.0, 0.0])
 ψ_target =  Vector{ComplexF64}([0.0, 1.0])
 
@@ -66,7 +68,9 @@ end
 # ![pulse optimization animation](../../assets/animation.gif)
 
 # Using a callback to get the best trajectory from all the optimization iterations
-sys2 = QuantumSystem(0.15 * GATES[:Z], [GATES[:X], GATES[:Y]])
+T_max = 1.0
+u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
+sys2 = QuantumSystem(0.15 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
 ψ_init2 =  Vector{ComplexF64}([0.0, 1.0])
 ψ_target2 =  Vector{ComplexF64}([1.0, 0.0])
 

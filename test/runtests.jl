@@ -1,4 +1,3 @@
-using Test
 using TestItemRunner
 
 # Run all testitem tests in package

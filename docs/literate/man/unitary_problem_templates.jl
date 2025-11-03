@@ -19,8 +19,9 @@ instead of driving the system to a target state, the goal is to drive the system
 target unitary operator, `U_goal`.
 
 =#
-
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y])
+T_max = 1.0
+u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], T_max, u_bounds)
 U_goal = GATES.H
 T = 51
 Δt = 0.2
@@ -46,10 +47,16 @@ solve!(prob, max_iter=100, verbose=true, print_level=1);
         applying constraint: bounds on da
         applying constraint: bounds on dda
         applying constraint: bounds on Δt
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_049034.jld2") # hide
 prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -101,7 +108,7 @@ solve!(min_prob, max_iter=100, verbose=true, print_level=1);
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_min_time_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_min_time_049034.jld2") # hide
 min_prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -126,7 +133,9 @@ This can be useful for exploring robustness, for example.
 =#
 
 # _create a sampling problem_
-driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y])
+T_max = 1.0
+u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
+driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], T_max, u_bounds)
 sampling_prob = UnitarySamplingProblem([system, driftless_system], U_goal, T, Δt);
 
 # _new keys are addded to the trajectory for the new states_
@@ -150,8 +159,10 @@ for more details.
 =#
 
 # _create a variational system, with a variational Hamiltonian, `PAULIS.X`_
+T_max = 1.0
+u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 H_var = PAULIS.X
-varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var]);
+varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], T_max, u_bounds);
 
 # _create a variational problem that is robust to `PAULIS.X` at the end_
 robprob = UnitaryVariationalProblem(varsys, U_goal, T, Δt, robust_times=[[T]]);

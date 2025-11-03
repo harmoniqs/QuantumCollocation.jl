@@ -162,16 +162,17 @@ function UnitarySmoothPulseProblem(
     args...;
     kwargs...
 )
-    system = QuantumSystem(H_drift, H_drives)
+    system = QuantumSystem(H_drift, H_drives, T_max, u_bounds)
     return UnitarySmoothPulseProblem(system, args...; kwargs...)
 end
 
 # *************************************************************************** #
 
 @testitem "Hadamard gate improvement" begin
-    using PiccoloQuantumObjects 
-
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]])
+    using PiccoloQuantumObjects
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
     U_goal = GATES[:H]
     T = 51
     Δt = 0.2
@@ -182,15 +183,16 @@ end
         piccolo_options=PiccoloOptions(verbose=false)
     )
 
-    initial = unitary_rollout_fidelity(prob.trajectory, sys)
+    initial = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
     solve!(prob, max_iter=100, verbose=false, print_level=1)
-    @test unitary_rollout_fidelity(prob.trajectory, sys) > initial
+    @test unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a) > initial
 end
 
 @testitem "Bound states and control norm constraint" begin
-    using PiccoloQuantumObjects 
-
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]])
+    using PiccoloQuantumObjects
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
     U_goal = GATES[:H]
     T = 51
     Δt = 0.2
@@ -211,9 +213,11 @@ end
 
 @testitem "EmbeddedOperator tests" begin
     using PiccoloQuantumObjects 
+    T_max = 1.0
+    u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 
     a = annihilate(3)
-    sys = QuantumSystem([(a + a')/2, (a - a')/(2im)])
+    sys = QuantumSystem([(a + a')/2, (a - a')/(2im)], T_max, u_bounds)
     U_goal = EmbeddedOperator(GATES[:H], sys)
     T = 51
     Δt = 0.2

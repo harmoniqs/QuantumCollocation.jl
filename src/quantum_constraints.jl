@@ -29,7 +29,7 @@ function FinalKetFidelityConstraint(
         ψ̃_name,
         traj,
         equality=false,
-        times=[traj.T]
+        times=[traj.N]
     )
 end
 
@@ -50,7 +50,7 @@ function FinalUnitaryFidelityConstraint(
         Ũ⃗_name,
         traj,
         equality=false,
-        times=[traj.T]
+        times=[traj.N]
     )
 end
 
@@ -73,7 +73,7 @@ function FinalUnitaryFidelityConstraint(
         θ_names,
         traj,
         equality=false,
-        times=[traj.T]
+        times=[traj.N]
     )
 end
 
@@ -92,7 +92,7 @@ function LeakageConstraint(
     indices::AbstractVector{Int},
     name::Symbol,
     traj::NamedTrajectory;
-    times=1:traj.T,
+    times=1:traj.N,
 )
     leakage_constraint(x) = abs2.(x[indices]) .- value
     
