@@ -3,8 +3,6 @@ export TransmonDipoleCoupling
 export MultiTransmonSystem
 export QuantumSystemCoupling
 
-# TODO(jack): convert drive_bound from scalar to vec across all systems before construction of QuantumSystem
-
 @doc raw"""
     TransmonSystem(;
         ω::Float64=4.4153,  # GHz
@@ -293,7 +291,7 @@ end
 @testitem "TransmonDipoleCoupling: both constructors and frames" begin
     levels = [3, 3]
     g = 0.01
-  
+
     c1 = TransmonDipoleCoupling(g, (1, 2), levels, lab_frame=false)
     c2 = TransmonDipoleCoupling(g, (1, 2), levels, lab_frame=true)
     @test c1 isa QuantumSystemCoupling
@@ -308,7 +306,7 @@ end
 @testitem "MultiTransmonSystem: minimal and custom" begin
     using LinearAlgebra: norm
     using PiccoloQuantumObjects
-    
+
     ωs = [4.0, 4.1]
     δs = [0.2, 0.21]
     gs = [0.0 0.01; 0.01 0.0]
