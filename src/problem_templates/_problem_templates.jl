@@ -72,7 +72,7 @@ function apply_piccolo_options!(
             println("\tapplying complex control norm constraint: $(piccolo_options.complex_control_norm_constraint_name)")
         end
         norm_con = NonlinearKnotPointConstraint(
-            a -> [norm(a)^2 - piccolo_options.complex_control_norm_constraint_radius^2],
+            u -> [norm(u)^2 - piccolo_options.complex_control_norm_constraint_radius^2],
             piccolo_options.complex_control_norm_constraint_name,
             traj;
             equality=false,

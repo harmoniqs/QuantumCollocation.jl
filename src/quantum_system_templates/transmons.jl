@@ -32,7 +32,7 @@ where `a` is the annihilation operator.
 """
 function TransmonSystem(;
     T_max::Float64=10.0,
-    drive_bounds::Vector{<:Union{Tuple{Float64, Float64}, Float64}}=fill(1.0, 2),
+    drive_bounds::Vector{<:Union{Tuple{Float64,Float64},Float64}}=fill(1.0, 2),
     ω::Float64=4.0,  # GHz
     δ::Float64=0.2, # GHz
     levels::Int=3,
@@ -68,8 +68,8 @@ function TransmonSystem(;
             ω₀ = ω + δ
             E_C = δ
             E_J = ω₀^2 / 8E_C
-            n̂ = im / 2 * (E_J / 2E_C)^(1/4) * (a - a')
-            φ̂ = (2E_C / E_J)^(1/4) * (a + a')
+            n̂ = im / 2 * (E_J / 2E_C)^(1 / 4) * (a - a')
+            φ̂ = (2E_C / E_J)^(1 / 4) * (a + a')
             H_drift = 4 * E_C * n̂^2 - E_J * cos(φ̂)
             # H_drift = 4 * E_C * n̂^2 - E_J * (I - φ̂^2 / 2 + φ̂^4 / 24)
         end
@@ -88,17 +88,6 @@ function TransmonSystem(;
         H_drives .*= 2π
     end
 
-    params = Dict{Symbol, Any}(
-        :ω => ω,
-        :δ => δ,
-        :levels => levels,
-        :lab_frame => lab_frame,
-        :frame_ω => frame_ω,
-        :mutiply_by_2π => mutiply_by_2π,
-        :lab_frame_type => lab_frame_type,
-        :drives => drives,
-    )
-
     return QuantumSystem(
         H_drift,
         H_drives,
@@ -113,7 +102,6 @@ struct QuantumSystemCoupling
     pair
     subsystem_levels
     coupling_type
-    params
 end
 
 @doc raw"""
@@ -150,7 +138,7 @@ function TransmonDipoleCoupling end
 
 function TransmonDipoleCoupling(
     g_ij::Float64,
-    pair::Tuple{Int, Int},
+    pair::Tuple{Int,Int},
     subsystem_levels::Vector{Int};
     lab_frame::Bool=false,
     mulitply_by_2π::Bool=true,
@@ -170,24 +158,18 @@ function TransmonDipoleCoupling(
         op *= 2π
     end
 
-    params = Dict{Symbol, Any}(
-        :lab_frame => lab_frame,
-        :mulitply_by_2π => mulitply_by_2π,
-    )
-
     return QuantumSystemCoupling(
         op,
         g_ij,
         pair,
         subsystem_levels,
         TransmonDipoleCoupling,
-        params
     )
 end
 
 function TransmonDipoleCoupling(
     g_ij::Float64,
-    pair::Tuple{Int, Int},
+    pair::Tuple{Int,Int},
     sub_systems::AbstractVector{<:AbstractQuantumSystem};
     kwargs...
 )
@@ -215,12 +197,12 @@ function MultiTransmonSystem(
     δs::AbstractVector{Float64},
     gs::AbstractMatrix{Float64};
     T_max::Float64=10.0,
-    drive_bounds::Union{Float64, Vector{<:Union{Tuple{Float64, Float64}, Float64}}}=[(-1.0, 1.0) for _ in 1:length(ωs)],
-    levels_per_transmon::Int = 3,
-    subsystem_levels::AbstractVector{Int} = fill(levels_per_transmon, length(ωs)),
+    drive_bounds::Union{Float64,Vector{<:Union{Tuple{Float64,Float64},Float64}}}=[(-1.0, 1.0) for _ in 1:length(ωs)],
+    levels_per_transmon::Int=3,
+    subsystem_levels::AbstractVector{Int}=fill(levels_per_transmon, length(ωs)),
     lab_frame=false,
-    subsystems::AbstractVector{Int} = 1:length(ωs),
-    subsystem_drive_indices::AbstractVector{Int} = 1:length(ωs),
+    subsystems::AbstractVector{Int}=1:length(ωs),
+    subsystem_drive_indices::AbstractVector{Int}=1:length(ωs),
     kwargs...
 )
     n_subsystems = length(ωs)
@@ -319,7 +301,7 @@ end
     comp2 = MultiTransmonSystem(
         ωs, δs, gs;
         levels_per_transmon=4,
-        subsystem_levels=[4,4],
+        subsystem_levels=[4, 4],
         subsystems=[1],
         subsystem_drive_indices=[1]
     )
@@ -336,7 +318,7 @@ end
     # Only a subset of subsystems
     comp = MultiTransmonSystem(
         ωs, δs, gs;
-        subsystems=[1,3],
+        subsystems=[1, 3],
         subsystem_drive_indices=[3]
     )
     @test comp isa CompositeQuantumSystem

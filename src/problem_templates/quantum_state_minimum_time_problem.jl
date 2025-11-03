@@ -87,7 +87,7 @@ end
 
 @testitem "Test quantum state minimum time" begin
     using NamedTrajectories
-    using PiccoloQuantumObjects 
+    using PiccoloQuantumObjects
 
     T = 51
     T_max = 1.0
