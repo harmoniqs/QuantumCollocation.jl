@@ -49,8 +49,8 @@ a_bound = 0.2
 ## create the system
 sys = TransmonSystem(levels=levels, δ=δ)
 
-## let's look at the parameters of the system
-sys.params
+## let's look at a drive
+get_drives(sys)[1] |> sparse
 
 
 # Since this is a multilevel transmon and we want to implement an, let's say, $X$ gate on the qubit subspace, i.e., the first two levels we can utilize the `EmbeddedOperator` type to define the target operator.
@@ -193,13 +193,13 @@ Number of inequality constraint evaluations          = 0
 Number of equality constraint Jacobian evaluations   = 51
 Number of inequality constraint Jacobian evaluations = 0
 Number of Lagrangian Hessian evaluations             = 50
-Total seconds in IPOPT                               = 293.520
+Total seconds in IPOPT                               = 390.676
 
 EXIT: Maximum Number of Iterations Exceeded.
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_049034.jld2") # hide
 prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -230,7 +230,7 @@ prob_leakage = UnitarySmoothPulseProblem(sys, op, T, Δt;
 )
 
 ## solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_leakage_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_leakage_049034.jld2") # hide
 prob_leakage.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -561,7 +561,7 @@ Number of inequality constraint evaluations          = 270
 Number of equality constraint Jacobian evaluations   = 251
 Number of inequality constraint Jacobian evaluations = 251
 Number of Lagrangian Hessian evaluations             = 250
-Total seconds in IPOPT                               = 1605.362
+Total seconds in IPOPT                               = 2276.038
 
 EXIT: Maximum Number of Iterations Exceeded.
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>

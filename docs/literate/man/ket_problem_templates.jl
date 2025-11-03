@@ -54,7 +54,7 @@ solve!(state_prob, max_iter=100, verbose=true, print_level=1);
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_049034.jld2") # hide
 state_prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -100,7 +100,7 @@ solve!(min_state_prob, max_iter=100, verbose=true, print_level=1);
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_min_time_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_min_time_049034.jld2") # hide
 min_state_prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -151,7 +151,7 @@ solve!(sampling_state_prob, max_iter=25, verbose=true, print_level=1);
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_sampling_state_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_sampling_state_049034.jld2") # hide
 sampling_state_prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 

@@ -47,10 +47,16 @@ solve!(prob, max_iter=100, verbose=true, print_level=1);
         applying constraint: bounds on da
         applying constraint: bounds on dda
         applying constraint: bounds on Δt
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_049034.jld2") # hide
 prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -102,7 +108,7 @@ solve!(min_prob, max_iter=100, verbose=true, print_level=1);
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_min_time_25e3be.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_min_time_049034.jld2") # hide
 min_prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
