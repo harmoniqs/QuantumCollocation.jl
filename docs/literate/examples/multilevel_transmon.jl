@@ -199,7 +199,7 @@ EXIT: Maximum Number of Iterations Exceeded.
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_049034.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_049034.jld2") # hide
 prob.trajectory = load_traj(load_path) # hide
 nothing # hide
 
