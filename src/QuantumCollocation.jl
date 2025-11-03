@@ -10,6 +10,9 @@ include("piccolo_options.jl")
 include("trajectory_initialization.jl")
 @reexport using .TrajectoryInitialization
 
+include("quantum_trajectories.jl")
+@reexport using .QuantumTrajectories
+
 include("quantum_objectives.jl")
 @reexport using .QuantumObjectives
 

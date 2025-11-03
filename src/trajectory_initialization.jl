@@ -799,7 +799,7 @@ Create a unitary trajectory initialized from a quantum system.
 - `store_times::Bool`: Store cumulative time values in the trajectory (default: false)
 
 # Returns
-- `NamedTrajectory`: Initialized unitary trajectory
+- `UnitaryTrajectory`: Initialized unitary trajectory with quantum metadata
 """
 function unitary_trajectory(
     sys::QuantumSystem,
@@ -865,7 +865,7 @@ function unitary_trajectory(
         controls = (controls..., :t)
     end
     
-    return NamedTrajectory(
+    traj = NamedTrajectory(
         comps_data;
         controls = controls,
         timestep = :Δt,
@@ -874,6 +874,8 @@ function unitary_trajectory(
         goal = goal,
         bounds = bounds
     )
+    
+    return UnitaryTrajectory(traj, sys, :Ũ⃗, :u, U_goal)
 end
 
 """
@@ -909,7 +911,7 @@ Supports multiple simultaneous state trajectories with shared controls.
 - `store_times::Bool`: Store cumulative time values in the trajectory (default: false)
 
 # Returns
-- `NamedTrajectory`: Initialized ket trajectory
+- `KetTrajectory`: Initialized ket trajectory with quantum metadata
 
 # Examples
 ```julia
@@ -999,7 +1001,7 @@ function ket_trajectory(
         controls = (controls..., :t)
     end
     
-    return NamedTrajectory(
+    traj = NamedTrajectory(
         comps_data;
         controls = controls,
         timestep = :Δt,
@@ -1008,6 +1010,10 @@ function ket_trajectory(
         goal = goal,
         bounds = bounds
     )
+    
+    # Return wrapped trajectory with metadata
+    # Use first state name for the trajectory wrapper
+    return KetTrajectory(traj, sys, state_names[1], :u, ψ_goals)
 end
 
 """
@@ -1031,7 +1037,7 @@ Convenience constructor for a single ket state trajectory.
 - `kwargs...`: Additional arguments passed to the main `ket_trajectory` method
 
 # Returns
-- `NamedTrajectory`: Initialized ket trajectory
+- `KetTrajectory`: Initialized ket trajectory with quantum metadata
 """
 function ket_trajectory(
     sys::QuantumSystem,
@@ -1070,7 +1076,7 @@ Create a density matrix trajectory initialized from an open quantum system.
 - `store_times::Bool`: Store cumulative time values in the trajectory (default: false)
 
 # Returns
-- `NamedTrajectory`: Initialized density matrix trajectory
+- `DensityTrajectory`: Initialized density matrix trajectory with quantum metadata
 """
 function density_trajectory(
     sys::OpenQuantumSystem,
@@ -1131,7 +1137,7 @@ function density_trajectory(
         controls = (controls..., :t)
     end
     
-    return NamedTrajectory(
+    traj = NamedTrajectory(
         comps_data;
         controls = controls,
         timestep = :Δt,
@@ -1140,6 +1146,8 @@ function density_trajectory(
         goal = goal,
         bounds = bounds
     )
+    
+    return DensityTrajectory(traj, sys, :ρ⃗̃, :u, ρ_goal)
 end
 
 
@@ -1357,40 +1365,44 @@ end
     
     # Test with default parameters (identity to identity)
     U_goal = GATES[:I]
-    traj = unitary_trajectory(sys, U_goal, N)
-    @test traj isa NamedTrajectory
-    @test size(traj[:Ũ⃗], 2) == N
-    @test size(traj[:u], 2) == N
-    @test size(traj[:u], 1) == 2  # 2 drives
+    qtraj = unitary_trajectory(sys, U_goal, N)
+    @test qtraj isa UnitaryTrajectory
+    @test size(qtraj[:Ũ⃗], 2) == N
+    @test size(qtraj[:u], 2) == N
+    @test size(qtraj[:u], 1) == 2  # 2 drives
+    @test system(qtraj) === sys
+    @test goal(qtraj) === U_goal
+    @test state_name(qtraj) == :Ũ⃗
+    @test control_name(qtraj) == :u
     
     # Test with custom initial and goal unitaries
     U_init = GATES[:I]
     U_goal = GATES[:X]
-    traj2 = unitary_trajectory(sys, U_goal, N; U_init=U_init)
-    @test traj2 isa NamedTrajectory
-    @test size(traj2[:Ũ⃗], 2) == N
+    qtraj2 = unitary_trajectory(sys, U_goal, N; U_init=U_init)
+    @test qtraj2 isa UnitaryTrajectory
+    @test size(qtraj2[:Ũ⃗], 2) == N
     
     # Test with fixed time (free_time=false)
-    traj3 = unitary_trajectory(sys, U_goal, N; free_time=false)
-    @test traj3 isa NamedTrajectory
+    qtraj3 = unitary_trajectory(sys, U_goal, N; free_time=false)
+    @test qtraj3 isa UnitaryTrajectory
     # Check that Δt bounds are equal (fixed timestep)
     Δt_val = sys.T_max / (N - 1)
-    @test traj3.bounds[:Δt][1][1] == Δt_val
-    @test traj3.bounds[:Δt][2][1] == Δt_val
+    @test qtraj3.bounds[:Δt][1][1] == Δt_val
+    @test qtraj3.bounds[:Δt][2][1] == Δt_val
     
     # Test with custom Δt bounds
-    traj4 = unitary_trajectory(sys, U_goal, N; Δt_min=0.05, Δt_max=0.2)
-    @test traj4 isa NamedTrajectory
-    @test traj4.bounds[:Δt][1][1] == 0.05
-    @test traj4.bounds[:Δt][2][1] == 0.2
+    qtraj4 = unitary_trajectory(sys, U_goal, N; Δt_min=0.05, Δt_max=0.2)
+    @test qtraj4 isa UnitaryTrajectory
+    @test qtraj4.bounds[:Δt][1][1] == 0.05
+    @test qtraj4.bounds[:Δt][2][1] == 0.2
     
     # Test with store_times=true
-    traj5 = unitary_trajectory(sys, U_goal, N; store_times=true)
-    @test traj5 isa NamedTrajectory
-    @test haskey(traj5.components, :t)
-    @test size(traj5[:t], 2) == N
-    @test traj5[:t][1] ≈ 0.0
-    @test traj5.initial[:t][1] ≈ 0.0
+    qtraj5 = unitary_trajectory(sys, U_goal, N; store_times=true)
+    @test qtraj5 isa UnitaryTrajectory
+    @test haskey(qtraj5.components, :t)
+    @test size(qtraj5[:t], 2) == N
+    @test qtraj5[:t][1] ≈ 0.0
+    @test qtraj5.initial[:t][1] ≈ 0.0
 end
 
 @testitem "ket_trajectory convenience function" begin
@@ -1410,49 +1422,55 @@ end
     ψ_goal = ComplexF64[0.0, 1.0]
     
     # Test with specified initial and goal states (single state)
-    traj = ket_trajectory(sys, ψ_init, ψ_goal, N)
-    @test traj isa NamedTrajectory
-    @test size(traj[:ψ̃], 2) == N
-    @test size(traj[:u], 2) == N
-    @test size(traj[:u], 1) == 2  # 2 drives
+    qtraj = ket_trajectory(sys, ψ_init, ψ_goal, N)
+    @test qtraj isa KetTrajectory
+    @test size(qtraj[:ψ̃], 2) == N
+    @test size(qtraj[:u], 2) == N
+    @test size(qtraj[:u], 1) == 2  # 2 drives
+    @test system(qtraj) === sys
+    @test goal(qtraj) == ψ_goal
+    @test state_name(qtraj) == :ψ̃
+    @test control_name(qtraj) == :u
     
     # Test with fixed time
-    traj3 = ket_trajectory(sys, ψ_init, ψ_goal, N; free_time=false)
-    @test traj3 isa NamedTrajectory
+    qtraj3 = ket_trajectory(sys, ψ_init, ψ_goal, N; free_time=false)
+    @test qtraj3 isa KetTrajectory
     Δt_val = sys.T_max / (N - 1)
-    @test traj3.bounds[:Δt][1][1] == Δt_val
-    @test traj3.bounds[:Δt][2][1] == Δt_val
+    @test qtraj3.bounds[:Δt][1][1] == Δt_val
+    @test qtraj3.bounds[:Δt][2][1] == Δt_val
     
     # Test with custom Δt bounds
-    traj4 = ket_trajectory(sys, ψ_init, ψ_goal, N; Δt_min=0.05, Δt_max=0.2)
-    @test traj4 isa NamedTrajectory
-    @test traj4.bounds[:Δt][1][1] == 0.05
-    @test traj4.bounds[:Δt][2][1] == 0.2
+    qtraj4 = ket_trajectory(sys, ψ_init, ψ_goal, N; Δt_min=0.05, Δt_max=0.2)
+    @test qtraj4 isa KetTrajectory
+    @test qtraj4.bounds[:Δt][1][1] == 0.05
+    @test qtraj4.bounds[:Δt][2][1] == 0.2
     
     # Test with multiple states
     ψ2_init = ComplexF64[0.0, 1.0]
     ψ2_goal = ComplexF64[1.0, 0.0]
-    traj5 = ket_trajectory(sys, [ψ_init, ψ2_init], [ψ_goal, ψ2_goal], N)
-    @test traj5 isa NamedTrajectory
-    @test size(traj5[:ψ̃1], 2) == N
-    @test size(traj5[:ψ̃2], 2) == N
-    @test size(traj5[:u], 2) == N
+    qtraj5 = ket_trajectory(sys, [ψ_init, ψ2_init], [ψ_goal, ψ2_goal], N)
+    @test qtraj5 isa KetTrajectory
+    @test size(qtraj5[:ψ̃1], 2) == N
+    @test size(qtraj5[:ψ̃2], 2) == N
+    @test size(qtraj5[:u], 2) == N
+    @test goal(qtraj5) == [ψ_goal, ψ2_goal]  # Multiple goals
     
     # Test with custom state names
-    traj6 = ket_trajectory(sys, [ψ_init, ψ2_init], [ψ_goal, ψ2_goal], N;
+    qtraj6 = ket_trajectory(sys, [ψ_init, ψ2_init], [ψ_goal, ψ2_goal], N;
         state_names=[:ψ̃_a, :ψ̃_b]
     )
-    @test traj6 isa NamedTrajectory
-    @test size(traj6[:ψ̃_a], 2) == N
-    @test size(traj6[:ψ̃_b], 2) == N
+    @test qtraj6 isa KetTrajectory
+    @test size(qtraj6[:ψ̃_a], 2) == N
+    @test size(qtraj6[:ψ̃_b], 2) == N
+    @test state_name(qtraj6) == :ψ̃_a  # First state name
     
     # Test with store_times=true
-    traj7 = ket_trajectory(sys, ψ_init, ψ_goal, N; store_times=true)
-    @test traj7 isa NamedTrajectory
-    @test haskey(traj7.components, :t)
-    @test size(traj7[:t], 2) == N
-    @test traj7[:t][1] ≈ 0.0
-    @test traj7.initial[:t][1] ≈ 0.0
+    qtraj7 = ket_trajectory(sys, ψ_init, ψ_goal, N; store_times=true)
+    @test qtraj7 isa KetTrajectory
+    @test haskey(qtraj7.components, :t)
+    @test size(qtraj7[:t], 2) == N
+    @test qtraj7[:t][1] ≈ 0.0
+    @test qtraj7.initial[:t][1] ≈ 0.0
 end
 
 @testitem "density_trajectory convenience function" begin
@@ -1472,32 +1490,36 @@ end
     ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]  # |1⟩⟨1|
     
     # Test with specified initial and goal states
-    traj = density_trajectory(sys, ρ_init, ρ_goal, N)
-    @test traj isa NamedTrajectory
-    @test size(traj[:ρ⃗̃], 2) == N
-    @test size(traj[:u], 2) == N
-    @test size(traj[:u], 1) == 2  # 2 drives
+    qtraj = density_trajectory(sys, ρ_init, ρ_goal, N)
+    @test qtraj isa DensityTrajectory
+    @test size(qtraj[:ρ⃗̃], 2) == N
+    @test size(qtraj[:u], 2) == N
+    @test size(qtraj[:u], 1) == 2  # 2 drives
+    @test system(qtraj) === sys
+    @test goal(qtraj) == ρ_goal
+    @test state_name(qtraj) == :ρ⃗̃
+    @test control_name(qtraj) == :u
     
     # Test with fixed time
-    traj3 = density_trajectory(sys, ρ_init, ρ_goal, N; free_time=false)
-    @test traj3 isa NamedTrajectory
+    qtraj3 = density_trajectory(sys, ρ_init, ρ_goal, N; free_time=false)
+    @test qtraj3 isa DensityTrajectory
     Δt_val = sys.T_max / (N - 1)
-    @test traj3.bounds[:Δt][1][1] == Δt_val
-    @test traj3.bounds[:Δt][2][1] == Δt_val
+    @test qtraj3.bounds[:Δt][1][1] == Δt_val
+    @test qtraj3.bounds[:Δt][2][1] == Δt_val
     
     # Test with custom Δt bounds
-    traj4 = density_trajectory(sys, ρ_init, ρ_goal, N; Δt_min=0.05, Δt_max=0.2)
-    @test traj4 isa NamedTrajectory
-    @test traj4.bounds[:Δt][1][1] == 0.05
-    @test traj4.bounds[:Δt][2][1] == 0.2
+    qtraj4 = density_trajectory(sys, ρ_init, ρ_goal, N; Δt_min=0.05, Δt_max=0.2)
+    @test qtraj4 isa DensityTrajectory
+    @test qtraj4.bounds[:Δt][1][1] == 0.05
+    @test qtraj4.bounds[:Δt][2][1] == 0.2
     
     # Test with store_times=true
-    traj5 = density_trajectory(sys, ρ_init, ρ_goal, N; store_times=true)
-    @test traj5 isa NamedTrajectory
-    @test haskey(traj5.components, :t)
-    @test size(traj5[:t], 2) == N
-    @test traj5[:t][1] ≈ 0.0
-    @test traj5.initial[:t][1] ≈ 0.0
+    qtraj5 = density_trajectory(sys, ρ_init, ρ_goal, N; store_times=true)
+    @test qtraj5 isa DensityTrajectory
+    @test haskey(qtraj5.components, :t)
+    @test size(qtraj5[:t], 2) == N
+    @test qtraj5[:t][1] ≈ 0.0
+    @test qtraj5.initial[:t][1] ≈ 0.0
 end
 
 

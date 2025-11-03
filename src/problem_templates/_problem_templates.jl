@@ -4,6 +4,7 @@ using ..TrajectoryInitialization
 using ..QuantumObjectives
 using ..QuantumConstraints
 using ..QuantumIntegrators
+using ..QuantumTrajectories
 using ..Options
 
 using TrajectoryIndexingUtils
@@ -16,6 +17,9 @@ using LinearAlgebra
 using SparseArrays
 using TestItems
 
+const ⊗ = kron
+
+include("smooth_pulse_problem.jl")
 include("unitary_smooth_pulse_problem.jl")
 include("unitary_variational_problem.jl")
 include("unitary_minimum_time_problem.jl")
