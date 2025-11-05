@@ -54,9 +54,7 @@ function UnitarySamplingProblem(
     control_name::Symbol=:u,
     timestep_name::Symbol=:Δt,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
-    u_bound::Float64=1.0,
-    u_bounds=fill(u_bound, systems[1].n_drives),
-    u_guess::Union{Matrix{Float64},Nothing}=nothing,
+    u_guess::Union{Matrix{Float64}, Nothing}=nothing,
     du_bound::Float64=Inf,
     du_bounds=fill(du_bound, systems[1].n_drives),
     ddu_bound::Float64=1.0,
@@ -65,9 +63,9 @@ function UnitarySamplingProblem(
     Δt_max::Float64=2.0 * maximum(Δt),
     Q::Float64=100.0,
     R=1e-2,
-    R_u::Union{Float64,Vector{Float64}}=R,
-    R_du::Union{Float64,Vector{Float64}}=R,
-    R_ddu::Union{Float64,Vector{Float64}}=R,
+    R_u::Union{Float64, Vector{Float64}}=R,
+    R_du::Union{Float64, Vector{Float64}}=R,
+    R_ddu::Union{Float64, Vector{Float64}}=R,
     kwargs...
 )
     @assert length(systems) == length(operators)
@@ -92,7 +90,7 @@ function UnitarySamplingProblem(
                 T,
                 Δt,
                 sys.n_drives,
-                (u_bounds, du_bounds, ddu_bounds);
+                (sys.drive_bounds, du_bounds, ddu_bounds);
                 state_name=st,
                 control_name=control_name,
                 timestep_name=timestep_name,
@@ -129,9 +127,9 @@ function UnitarySamplingProblem(
     J += apply_piccolo_options!(
         piccolo_options, constraints, traj;
         state_names=state_names,
-        state_leakage_indices=all(op -> op isa EmbeddedOperator, operators) ?
-                              get_iso_vec_leakage_indices.(operators) :
-                              nothing
+        state_leakage_indices=all(op -> op isa EmbeddedOperator, operators) ?       
+            get_iso_vec_leakage_indices.(operators) : 
+            nothing
     )
 
     # Integrators
@@ -185,13 +183,13 @@ end
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(prob, max_iter=100, print_level=1, verbose=false)
-
+    
     base_prob = UnitarySmoothPulseProblem(
         systems(samples[1]), operator, T, Δt,
         piccolo_options=PiccoloOptions(verbose=false)
     )
     solve!(base_prob, max_iter=100, verbose=false, print_level=1)
-
+    
     fid = []
     base_fid = []
     for x in range(samples[1], samples[1], length=5)

@@ -66,16 +66,16 @@ with
 function UnitarySmoothPulseProblem end
 
 function UnitarySmoothPulseProblem(
-    system::AbstractQuantumSystem, 
-    goal::AbstractPiccoloOperator, 
-    N::Int, 
-    Δt::Union{Float64,<:AbstractVector{Float64}};
+    system::AbstractQuantumSystem,
+    goal::AbstractPiccoloOperator,
+    N::Int,
+    Δt::Union{Float64, <:AbstractVector{Float64}};
     unitary_integrator=UnitaryIntegrator,
-    state_name::Symbol=:Ũ⃗,
-    control_name::Symbol=:u,
-    timestep_name::Symbol=:Δt,
-    init_trajectory::Union{NamedTrajectory,Nothing}=nothing,
-    u_guess::Union{Matrix{Float64},Nothing}=nothing,
+    state_name::Symbol = :Ũ⃗,
+    control_name::Symbol = :u,
+    timestep_name::Symbol = :Δt,
+    init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
+    u_guess::Union{Matrix{Float64}, Nothing}=nothing,
     du_bound::Float64=Inf,
     du_bounds=fill(du_bound, system.n_drives),
     ddu_bound::Float64=1.0,
@@ -84,19 +84,15 @@ function UnitarySmoothPulseProblem(
     Δt_max::Float64=2.0 * maximum(Δt),
     Q::Float64=100.0,
     R=1e-2,
-    R_u::Union{Float64,Vector{Float64}}=R,
-    R_du::Union{Float64,Vector{Float64}}=R,
-    R_ddu::Union{Float64,Vector{Float64}}=R,
+    R_u::Union{Float64, Vector{Float64}}=R,
+    R_du::Union{Float64, Vector{Float64}}=R,
+    R_ddu::Union{Float64, Vector{Float64}}=R,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
     piccolo_options::PiccoloOptions=PiccoloOptions(),
 )
-
     if piccolo_options.verbose
-
         println("    constructing UnitarySmoothPulseProblem...")
-
         println("\tusing integrator: $(typeof(unitary_integrator))")
-
     end
 
     # Trajectory
@@ -119,7 +115,8 @@ function UnitarySmoothPulseProblem(
             timestep_name=timestep_name,
             Δt_bounds=(Δt_min, Δt_max),
             zero_initial_and_final_derivative=piccolo_options.zero_initial_and_final_derivative,
-            geodesic=piccolo_options.geodesic, bound_state=piccolo_options.bound_state,
+            geodesic=piccolo_options.geodesic,
+            bound_state=piccolo_options.bound_state,
             u_guess=u_guess,
             system=system,
             rollout_integrator=piccolo_options.rollout_integrator,
@@ -127,33 +124,25 @@ function UnitarySmoothPulseProblem(
         )
     end
 
-
-
     # Objective
-
     J = UnitaryInfidelityObjective(goal, state_name, traj; Q=Q)
 
-
-
-    control_names = [name for name ∈ traj.names
-
-                     if endswith(string(name), string(control_name))]
-
-
+    control_names = [
+        name for name ∈ traj.names
+            if endswith(string(name), string(control_name))
+    ]
 
     J += QuadraticRegularizer(control_names[1], traj, R_u)
-
     J += QuadraticRegularizer(control_names[2], traj, R_du)
-
     J += QuadraticRegularizer(control_names[3], traj, R_ddu)
 
     # Optional Piccolo constraints and objectives
     J += apply_piccolo_options!(
-        piccolo_options, constraints, traj;
+        piccolo_options, constraints, traj; 
         state_names=state_name,
-        state_leakage_indices=goal isa EmbeddedOperator ?
-                              get_iso_vec_leakage_indices(goal) :
-                              nothing
+        state_leakage_indices=goal isa EmbeddedOperator ? 
+            get_iso_vec_leakage_indices(goal) : 
+            nothing
     )
 
     integrators = [
@@ -227,12 +216,12 @@ end
 end
 
 @testitem "EmbeddedOperator tests" begin
-    using PiccoloQuantumObjects
+    using PiccoloQuantumObjects 
     T_max = 1.0
     u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 
     a = annihilate(3)
-    sys = QuantumSystem([(a + a') / 2, (a - a') / (2im)], T_max, u_bounds)
+    sys = QuantumSystem([(a + a')/2, (a - a')/(2im)], T_max, u_bounds)
     U_goal = EmbeddedOperator(GATES[:H], sys)
     T = 51
     Δt = 0.2
@@ -253,8 +242,8 @@ end
             sys, U_goal, T, Δt;
             du_bound=1.0,
             piccolo_options=PiccoloOptions(
-                leakage_constraint=true,
-                leakage_constraint_value=5e-2,
+                leakage_constraint=true, 
+                leakage_constraint_value=5e-2, 
                 leakage_cost=1e-1,
                 verbose=false
             )

@@ -65,19 +65,17 @@ function UnitaryVariationalProblem(
     system::VariationalQuantumSystem,
     goal::AbstractPiccoloOperator,
     T::Int,
-    Δt::Union{Float64,<:AbstractVector{Float64}};
+    Δt::Union{Float64, <:AbstractVector{Float64}};
     robust_times::AbstractVector{<:AbstractVector{Int}}=[Int[] for s ∈ system.G_vars],
     sensitive_times::AbstractVector{<:AbstractVector{Int}}=[Int[] for s ∈ system.G_vars],
     variational_integrator=VariationalUnitaryIntegrator,
     variational_scales::AbstractVector{<:Float64}=fill(1.0, length(system.G_vars)),
-    state_name::Symbol=:Ũ⃗,
-    variational_state_name::Symbol=:Ũ⃗ᵥ,
-    control_name::Symbol=:u,
-    timestep_name::Symbol=:Δt,
-    init_trajectory::Union{NamedTrajectory,Nothing}=nothing,
-    u_bound::Float64=1.0,
-    u_bounds=fill(u_bound, system.n_drives),
-    u_guess::Union{AbstractMatrix{Float64},Nothing}=nothing,
+    state_name::Symbol = :Ũ⃗,
+    variational_state_name::Symbol = :Ũ⃗ᵥ,
+    control_name::Symbol = :u,
+    timestep_name::Symbol = :Δt,
+    init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
+    u_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing,
     du_bound::Float64=Inf,
     du_bounds=fill(du_bound, system.n_drives),
     ddu_bound::Float64=1.0,
@@ -88,9 +86,9 @@ function UnitaryVariationalProblem(
     Q_s::Float64=1e-2,
     Q_r::Float64=100.0,
     R=1e-2,
-    R_u::Union{Float64,Vector{Float64}}=R,
-    R_du::Union{Float64,Vector{Float64}}=R,
-    R_ddu::Union{Float64,Vector{Float64}}=R,
+    R_u::Union{Float64, Vector{Float64}}=R,
+    R_du::Union{Float64, Vector{Float64}}=R,
+    R_ddu::Union{Float64, Vector{Float64}}=R,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
     piccolo_options::PiccoloOptions=PiccoloOptions(),
 )
@@ -115,7 +113,7 @@ function UnitaryVariationalProblem(
             T,
             Δt,
             system.n_drives,
-            (u_bounds, du_bounds, ddu_bounds);
+            (system.drive_bounds, du_bounds, ddu_bounds);
             state_name=state_name,
             control_name=control_name,
             timestep_name=timestep_name,
@@ -129,8 +127,8 @@ function UnitaryVariationalProblem(
         )
     end
 
-    _, Ũ⃗_vars = variational_unitary_rollout(
-        traj,
+    _, Ũ⃗_vars =  variational_unitary_rollout(
+        traj, 
         system;
         unitary_name=state_name,
         drive_name=control_name
@@ -147,15 +145,15 @@ function UnitaryVariationalProblem(
         Ũ⃗_v / scale for (scale, Ũ⃗_v) in zip(variational_scales, Ũ⃗_vars)
     )
     traj = add_components(
-        traj,
-        var_comps_data;
+        traj, 
+        var_comps_data; 
         type=:state,
         initial=merge(traj.initial, var_comps_inits)
     )
 
     control_names = [
         name for name ∈ traj.names
-        if endswith(string(name), string(control_name))
+            if endswith(string(name), string(control_name))
     ]
 
     # objective
@@ -166,17 +164,17 @@ function UnitaryVariationalProblem(
 
     # sensitivity
     for (name, scale, s, r) ∈ zip(
-        var_state_names,
-        variational_scales,
-        sensitive_times,
+        var_state_names, 
+        variational_scales, 
+        sensitive_times, 
         robust_times
     )
         @assert isdisjoint(s, r)
         J += UnitarySensitivityObjective(
-            name,
-            traj,
-            [s; r];
-            Qs=[fill(-Q_s, length(s)); fill(Q_r, length(r))],
+            name, 
+            traj, 
+            [s; r]; 
+            Qs=[fill(-Q_s, length(s)); fill(Q_r, length(r))], 
             scale=scale
         )
     end
@@ -185,14 +183,14 @@ function UnitaryVariationalProblem(
     J += apply_piccolo_options!(
         piccolo_options, constraints, traj;
         state_names=state_name,
-        state_leakage_indices=goal isa EmbeddedOperator ?
-                              get_iso_vec_leakage_indices(goal) :
-                              nothing
+        state_leakage_indices=goal isa EmbeddedOperator ? 
+            get_iso_vec_leakage_indices(goal) :
+            nothing
     )
 
     integrators = [
         variational_integrator(
-            system, traj, state_name, [var_state_names...], control_name,
+            system, traj, state_name, [var_state_names...], control_name, 
             scales=variational_scales
         ),
         DerivativeIntegrator(traj, control_name, control_names[2]),
@@ -222,8 +220,8 @@ end
 
     sense_scale = 8.0
     sense_prob = UnitaryVariationalProblem(
-        varsys, GATES.X, T, Δt,
-        variational_scales=[sense_scale],
+        varsys, GATES.X, T, Δt, 
+        variational_scales=[sense_scale], 
         sensitive_times=[[T]],
         piccolo_options=PiccoloOptions(verbose=false)
     )
@@ -231,8 +229,8 @@ end
 
     rob_scale = 1 / 8.0
     rob_prob = UnitaryVariationalProblem(
-        varsys, GATES.X, T, Δt,
-        variational_scales=[rob_scale],
+        varsys, GATES.X, T, Δt, 
+        variational_scales=[rob_scale], 
         robust_times=[[T]],
         piccolo_options=PiccoloOptions(verbose=false)
     )

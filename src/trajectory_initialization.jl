@@ -149,7 +149,7 @@ function initialize_unitary_trajectory(
     U_goal::AbstractPiccoloOperator,
     N::Int;
     geodesic::Bool=true,
-    system::Union{AbstractQuantumSystem,Nothing}=nothing
+    system::Union{AbstractQuantumSystem, Nothing}=nothing
 )
     if geodesic
         if system isa AbstractQuantumSystem
@@ -240,9 +240,9 @@ function initialize_trajectory(
     state_goals::Vector{<:AbstractVector{Float64}},
     state_names::AbstractVector{Symbol},
     N::Int,
-    Δt::Union{Float64,AbstractVecOrMat{<:Float64}},
+    Δt::Union{Float64, AbstractVecOrMat{<:Float64}},
     n_drives::Int,
-    control_bounds::Tuple{Vararg{VectorBound}};
+    control_bounds::Tuple;
     bound_state=false,
     control_name=:u,
     n_control_derivatives::Int=length(control_bounds) - 1,
@@ -270,7 +270,18 @@ function initialize_trajectory(
 
     control_names = (control_name, control_derivative_names...)
 
-    control_bounds = NamedTuple{control_names}(control_bounds)
+    # Convert control_bounds elements from Vector{Tuple{Float64, Float64}} format to Tuple{Vector, Vector} format
+    # if necessary (to match NamedTrajectories expected types)
+    control_bounds_converted = map(control_bounds) do bound
+        if bound isa Vector{<:Tuple{Real, Real}}
+            # Convert from [(-1.5, 1.0), (-1.0, 2.0), ...] to ([lower...], [upper...])
+            return ([b[1] for b in bound], [b[2] for b in bound])
+        else
+            return bound
+        end
+    end
+
+    control_bounds = NamedTuple{control_names}(control_bounds_converted)
 
     # Timestep data
     if Δt isa Real
@@ -578,7 +589,7 @@ end
     @test Us10[:, 1] ≈ operator_to_iso_vec(U_α)
     @test Us10[:, end] ≈ operator_to_iso_vec(U_ω)
     @test H10' - H10 ≈ zeros(2, 2)
-    @test norm(H10) ≈ π / 10
+    @test norm(H10) ≈ π/10
 
     # Test wrapped call
     Us_wrap, H_wrap = unitary_geodesic(U_ω, 10, return_generator=true)
@@ -609,7 +620,7 @@ end
 
 @testitem "unitary trajectory initialization" begin
     using NamedTrajectories
-    using PiccoloQuantumObjects
+    using PiccoloQuantumObjects 
 
     U_goal = GATES[:X]
     T = 10
@@ -650,8 +661,8 @@ end
     Ũ⃗ = TrajectoryInitialization.unitary_linear_interpolation(U_init, U_goal, samples)
     @test size(Ũ⃗, 2) == samples
     # EmbeddedOperator
-    U_init_emb = EmbeddedOperator(U_init, [1, 2], [2, 2])
-    U_goal_emb = EmbeddedOperator(U_goal, [1, 2], [2, 2])
+    U_init_emb = EmbeddedOperator(U_init, [1,2], [2,2])
+    U_goal_emb = EmbeddedOperator(U_goal, [1,2], [2,2])
     Ũ⃗2 = TrajectoryInitialization.unitary_linear_interpolation(U_init_emb.operator, U_goal_emb, samples)
     @test size(Ũ⃗2, 2) == samples
 end

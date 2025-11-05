@@ -2,7 +2,7 @@ export CatSystem
 export coherent_ket
 export get_cat_controls
 
-function coherent_ket(α::Union{Real,Complex}, levels::Int)::Vector{ComplexF64}
+function coherent_ket(α::Union{Real, Complex}, levels::Int)::Vector{ComplexF64}
     return [exp(-0.5 * abs2(α)) * α^n / sqrt(factorial(n)) for n in 0:levels-1]
 end
 
@@ -37,7 +37,7 @@ function CatSystem(;
     a = annihilate(cat_levels) ⊗ Matrix(1.0I, buffer_levels, buffer_levels)
     b = Matrix(1.0I, cat_levels, cat_levels) ⊗ annihilate(buffer_levels)
 
-    H_drift = -χ_aa / 2 * a'a'a * a - χ_bb / 2 * b'b'b * b - χ_ab * a'a * b'b + g2 * a'a'b + conj(g2) * a * a * b'
+    H_drift = -χ_aa/2 * a'a'a*a - χ_bb/2 * b'b'b*b - χ_ab * a'a*b'b + g2 * a'a'b + conj(g2) * a*a*b'
 
     # buffer drive, kerr-correction drive
     H_drives = [b + b', a'a]

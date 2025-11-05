@@ -10,30 +10,28 @@ function QuantumStateSamplingProblem(
     ψ_inits::AbstractVector{<:AbstractVector{<:AbstractVector{<:ComplexF64}}},
     ψ_goals::AbstractVector{<:AbstractVector{<:AbstractVector{<:ComplexF64}}},
     T::Int,
-    Δt::Union{Float64,AbstractVector{Float64}};
-    ket_integrator = KetIntegrator,
-    system_weights = fill(1.0, length(systems)),
-    init_trajectory::Union{NamedTrajectory,Nothing} = nothing,
-    state_name::Symbol = :ψ̃,
+    Δt::Union{Float64, AbstractVector{Float64}};
+    ket_integrator=KetIntegrator,
+    system_weights=fill(1.0, length(systems)),
+    init_trajectory::Union{NamedTrajectory,Nothing}=nothing,
+    state_name::Symbol=:ψ̃,
     control_name::Symbol = :u,
-    timestep_name::Symbol = :Δt,
-    u_bound::Float64 = 1.0,
-    u_bounds = fill(u_bound, systems[1].n_drives),
-    u_guess::Union{Matrix{Float64},Nothing} = nothing,
+    timestep_name::Symbol=:Δt,
+    u_guess::Union{Matrix{Float64},Nothing}=nothing,
     du_bound::Float64 = Inf,
     du_bounds = fill(du_bound, systems[1].n_drives),
     ddu_bound::Float64 = 1.0,
     ddu_bounds = fill(ddu_bound, systems[1].n_drives),
-    Δt_min::Float64 = 0.5 * minimum(Δt),
-    Δt_max::Float64 = 2.0 * maximum(Δt),
-    Q::Float64 = 100.0,
-    R = 1e-2,
+    Δt_min::Float64=0.5 * minimum(Δt),
+    Δt_max::Float64=2.0 * maximum(Δt),
+    Q::Float64=100.0,
+    R=1e-2,
     R_u::Union{Float64,Vector{Float64}} = R,
     R_du::Union{Float64,Vector{Float64}} = R,
     R_ddu::Union{Float64,Vector{Float64}} = R,
-    state_leakage_indices::Union{Nothing,AbstractVector{Int}} = nothing,
-    constraints::Vector{<:AbstractConstraint} = AbstractConstraint[],
-    piccolo_options::PiccoloOptions = PiccoloOptions(),
+    state_leakage_indices::Union{Nothing,AbstractVector{Int}}=nothing,
+    constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
+    piccolo_options::PiccoloOptions=PiccoloOptions(),
 )
     @assert length(ψ_inits) == length(ψ_goals)
 
@@ -48,16 +46,12 @@ function QuantumStateSamplingProblem(
         [Symbol(string(state_name) * "$(i)_system_$(j)") for i in eachindex(ψs)]
         for (j, ψs) ∈ zip(eachindex(systems), ψ_inits)
     ]
-
+        
     # Trajectory
     if !isnothing(init_trajectory)
         traj = init_trajectory
     else
         # TODO(main issue with this is that it doesn't handle composite systems correctly, will come back to this.
-        u_bounds = (
-            [systems[1].drive_bounds[j][1] for j in 1:length(systems[1].drive_bounds)],
-            [systems[1].drive_bounds[j][2] for j in 1:length(systems[1].drive_bounds)]
-        )
         trajs = map(zip(systems, state_names, ψ_inits, ψ_goals)) do (sys, names, ψis, ψgs)
             initialize_trajectory(
                 ψis,
@@ -65,17 +59,17 @@ function QuantumStateSamplingProblem(
                 T,
                 Δt,
                 sys.n_drives,
-                (u_bounds, du_bounds, ddu_bounds);
-                state_names = names,
-                control_name = control_name,
-                timestep_name = timestep_name,
-                Δt_bounds = (Δt_min, Δt_max),
-                zero_initial_and_final_derivative = piccolo_options.zero_initial_and_final_derivative,
-                bound_state = piccolo_options.bound_state,
+                (sys.drive_bounds, du_bounds, ddu_bounds);
+                state_names=names,
+                control_name=control_name,
+                timestep_name=timestep_name,
+                Δt_bounds=(Δt_min, Δt_max),
+                zero_initial_and_final_derivative=piccolo_options.zero_initial_and_final_derivative,
+                bound_state=piccolo_options.bound_state,
                 u_guess = u_guess,
-                system = sys,
-                rollout_integrator = piccolo_options.rollout_integrator,
-                verbose = false, # loop
+                system=sys,
+                rollout_integrator=piccolo_options.rollout_integrator,
+                verbose=false, # loop
             )
         end
 
@@ -86,8 +80,10 @@ function QuantumStateSamplingProblem(
         )
     end
 
-    control_names =
-        [name for name ∈ traj.names if endswith(string(name), string(control_name))]
+    control_names = [
+        name for name ∈ traj.names
+        if endswith(string(name), string(control_name))
+    ]
 
     # Objective
     J = QuadraticRegularizer(control_names[1], traj, R_u)
@@ -96,18 +92,15 @@ function QuantumStateSamplingProblem(
 
     for (weight, names) in zip(system_weights, state_names)
         for name in names
-            J += KetInfidelityObjective(name, traj, Q = weight * Q)
+            J += KetInfidelityObjective(name, traj, Q=weight * Q)
         end
     end
 
     # Optional Piccolo constraints and objectives
     J += apply_piccolo_options!(
-        piccolo_options,
-        constraints,
-        traj;
-        state_names = vcat(state_names...),
-        state_leakage_indices = isnothing(state_leakage_indices) ? nothing :
-                                fill(state_leakage_indices, length(vcat(state_names...))),
+        piccolo_options, constraints, traj;
+        state_names=vcat(state_names...),
+        state_leakage_indices=isnothing(state_leakage_indices) ? nothing : fill(state_leakage_indices, length(vcat(state_names...))),
     )
 
     # Integrators
@@ -140,10 +133,10 @@ function QuantumStateSamplingProblem(
     kwargs...
 )
     return QuantumStateSamplingProblem(
-        systems,
-        fill(ψ_inits, length(systems)),
+        systems, 
+        fill(ψ_inits, length(systems)), 
         fill(ψ_goals, length(systems)),
-        args...;
+        args...; 
         kwargs...
     )
 end
@@ -172,21 +165,16 @@ end
     sys2 = QuantumSystem(-0.3 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
-
+    
     prob = QuantumStateSamplingProblem(
-        [sys1, sys2],
-        ψ_init,
-        ψ_target,
-        T,
-        Δt;
-        piccolo_options = PiccoloOptions(verbose = false),
+        [sys1, sys2], ψ_init, ψ_target, T, Δt;
+        piccolo_options=PiccoloOptions(verbose=false)
     )
-
+    
     state_name = :ψ̃
-    state_names =
-        [n for n ∈ prob.trajectory.names if startswith(string(n), string(state_name))]
+    state_names = [n for n ∈ prob.trajectory.names if startswith(string(n), string(state_name))]
     sys_state_names = [n for n ∈ state_names if endswith(string(n), "1")]
-
+    
     # Separately compute all unique initial and goal state fidelities
     inits = []
     for sys in [sys1, sys2]
@@ -195,9 +183,9 @@ end
             [rollout_fidelity(prob.trajectory, sys; state_name = n) for n in state_names],
         )
     end
-
-    solve!(prob, max_iter = 20, print_level = 1, verbose = false)
-
+    
+    solve!(prob, max_iter=20, print_level=1, verbose=false)
+        
     for (init, sys) in zip(inits, [sys1, sys2])
         final =
             [rollout_fidelity(prob.trajectory, sys, state_name = n) for n in state_names]
@@ -220,17 +208,12 @@ end
     ψ_targets = Vector{ComplexF64}.([[0.0, 1.0], [1.0, 0.0]])
 
     prob = QuantumStateSamplingProblem(
-        [sys1, sys2],
-        ψ_inits,
-        ψ_targets,
-        T,
-        Δt;
-        piccolo_options = PiccoloOptions(verbose = false),
+        [sys1, sys2], ψ_inits, ψ_targets, T, Δt;
+        piccolo_options=PiccoloOptions(verbose=false)
     )
 
     state_name = :ψ̃
-    state_names =
-        [n for n ∈ prob.trajectory.names if startswith(string(n), string(state_name))]
+    state_names = [n for n ∈ prob.trajectory.names if startswith(string(n), string(state_name))]
     sys_state_names = [n for n ∈ state_names if endswith(string(n), "1")]
 
     # Separately compute all unique initial and goal state fidelities
@@ -242,7 +225,7 @@ end
         )
     end
 
-    solve!(prob, max_iter = 20, print_level = 1, verbose = false)
+    solve!(prob, max_iter=20, print_level=1, verbose=false)
 
     for (init, sys) in zip(inits, [sys1, sys2])
         final =

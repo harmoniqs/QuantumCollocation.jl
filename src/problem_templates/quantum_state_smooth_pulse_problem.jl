@@ -51,58 +51,78 @@ with
 """
 function QuantumStateSmoothPulseProblem end
 
-function QuantumStateSmoothPulseProblem(sys::AbstractQuantumSystem, ψ_inits::Vector{<:AbstractVector{<:ComplexF64}}, ψ_goals::Vector{<:AbstractVector{<:ComplexF64}}, T::Int, Δt::Union{Float64,<:AbstractVector{Float64}}; ket_integrator=KetIntegrator, state_name::Symbol=:ψ̃, control_name::Symbol=:u, timestep_name::Symbol=:Δt, init_trajectory::Union{NamedTrajectory,Nothing}=nothing, u_bound::Float64=1.0, u_bounds=fill(u_bound, sys.n_drives), u_guess::Union{AbstractMatrix{Float64},Nothing}=nothing, du_bound::Float64=Inf, du_bounds=fill(du_bound, sys.n_drives), ddu_bound::Float64=1.0, ddu_bounds=fill(ddu_bound, sys.n_drives), Δt_min::Float64=0.5 * minimum(Δt), Δt_max::Float64=2.0 * maximum(Δt), Q::Float64=100.0, R=1e-2, R_u::Union{Float64,Vector{Float64}}=R, R_du::Union{Float64,Vector{Float64}}=R, R_ddu::Union{Float64,Vector{Float64}}=R, state_leakage_indices::Union{Nothing,AbstractVector{Int}}=nothing, constraints::Vector{<:AbstractConstraint}=AbstractConstraint[], piccolo_options::PiccoloOptions=PiccoloOptions(),)
-
+function QuantumStateSmoothPulseProblem(
+    sys::AbstractQuantumSystem,
+    ψ_inits::Vector{<:AbstractVector{<:ComplexF64}},
+    ψ_goals::Vector{<:AbstractVector{<:ComplexF64}},
+    T::Int,
+    Δt::Union{Float64, <:AbstractVector{Float64}};
+    ket_integrator=KetIntegrator,
+    state_name::Symbol=:ψ̃,
+    control_name::Symbol=:u,
+    timestep_name::Symbol=:Δt,
+    init_trajectory::Union{NamedTrajectory, Nothing}=nothing,
+    u_guess::Union{AbstractMatrix{Float64}, Nothing}=nothing,
+    du_bound::Float64=Inf,
+    du_bounds=fill(du_bound, sys.n_drives),
+    ddu_bound::Float64=1.0,
+    ddu_bounds=fill(ddu_bound, sys.n_drives),
+    Δt_min::Float64=0.5 * minimum(Δt),
+    Δt_max::Float64=2.0 * maximum(Δt),
+    Q::Float64=100.0,
+    R=1e-2,
+    R_u::Union{Float64, Vector{Float64}}=R,
+    R_du::Union{Float64, Vector{Float64}}=R,
+    R_ddu::Union{Float64, Vector{Float64}}=R,
+    state_leakage_indices::Union{Nothing, AbstractVector{Int}}=nothing,
+    constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
+    piccolo_options::PiccoloOptions=PiccoloOptions(),
+)
     @assert length(ψ_inits) == length(ψ_goals)
 
-
-
     if piccolo_options.verbose
-
         println("    constructing QuantumStateSmoothPulseProblem...")
-
         println("\tusing integrator: $(typeof(ket_integrator))")
-
         println("\tusing $(length(ψ_inits)) initial state(s)")
-
     end
-
-
 
     # Trajectory
-
     if !isnothing(init_trajectory)
-
         traj = init_trajectory
-
     else
-
-        traj = initialize_trajectory(ψ_goals, ψ_inits, T, Δt, sys.n_drives, (u_bounds, du_bounds, ddu_bounds); state_name=state_name, control_name=control_name, timestep_name=timestep_name, zero_initial_and_final_derivative=piccolo_options.zero_initial_and_final_derivative, Δt_bounds=(Δt_min, Δt_max), bound_state=piccolo_options.bound_state, u_guess=u_guess, system=sys, rollout_integrator=piccolo_options.rollout_integrator,)
-
+        traj = initialize_trajectory(
+            ψ_goals,
+            ψ_inits,
+            T,
+            Δt,
+            sys.n_drives,
+            (sys.drive_bounds, du_bounds, ddu_bounds);
+            state_name=state_name,
+            control_name=control_name,
+            timestep_name=timestep_name,
+            zero_initial_and_final_derivative=piccolo_options.zero_initial_and_final_derivative,
+            Δt_bounds=(Δt_min, Δt_max),
+            bound_state=piccolo_options.bound_state,
+            u_guess=u_guess,
+            system=sys,
+            rollout_integrator=piccolo_options.rollout_integrator,
+        )
     end
 
-
-
-    state_names = [name for name ∈ traj.names
-
-                   if startswith(string(name), string(state_name))]
-
+    state_names = [
+        name for name ∈ traj.names
+            if startswith(string(name), string(state_name))
+    ]
     @assert length(state_names) == length(ψ_inits) "Number of states must match number of initial states"
 
-
-
-    control_names = [name for name ∈ traj.names
-
-                     if endswith(string(name), string(control_name))]
-
-
+    control_names = [
+        name for name ∈ traj.names
+            if endswith(string(name), string(control_name))
+    ]
 
     # Objective
-
     J = QuadraticRegularizer(control_names[1], traj, R_u)
-
     J += QuadraticRegularizer(control_names[2], traj, R_du)
-
     J += QuadraticRegularizer(control_names[3], traj, R_ddu)
 
     for name ∈ state_names
@@ -113,19 +133,19 @@ function QuantumStateSmoothPulseProblem(sys::AbstractQuantumSystem, ψ_inits::Ve
     J += apply_piccolo_options!(
         piccolo_options, constraints, traj;
         state_names=state_names,
-        state_leakage_indices=isnothing(state_leakage_indices) ? nothing : fill(state_leakage_indices, length(state_names))
+        state_leakage_indices= isnothing(state_leakage_indices) ? nothing : fill(state_leakage_indices, length(state_names))
     )
 
     state_names = [
         name for name ∈ traj.names
-        if startswith(string(name), string(state_name))
+            if startswith(string(name), string(state_name))
     ]
 
     state_integrators = []
 
     for name ∈ state_names
         push!(
-            state_integrators,
+            state_integrators, 
             ket_integrator(sys, traj, name, control_name)
         )
     end
@@ -167,7 +187,7 @@ end
 # *************************************************************************** #
 
 @testitem "Test quantum state smooth pulse" begin
-    using PiccoloQuantumObjects
+    using PiccoloQuantumObjects 
 
     T = 51
     T_max = 1.0
@@ -176,7 +196,7 @@ end
     sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], T_max, u_bounds)
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
-
+    
     # Single initial and target states
     # --------------------------------
     prob = QuantumStateSmoothPulseProblem(
@@ -190,7 +210,7 @@ end
 end
 
 @testitem "Test multiple quantum states smooth pulse" begin
-    using PiccoloQuantumObjects
+    using PiccoloQuantumObjects 
 
     T = 50
     T_max = 1.0
