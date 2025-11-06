@@ -88,17 +88,6 @@ function TransmonSystem(;
         H_drives .*= 2π
     end
 
-    params = Dict{Symbol, Any}(
-        :ω => ω,
-        :δ => δ,
-        :levels => levels,
-        :lab_frame => lab_frame,
-        :frame_ω => frame_ω,
-        :mutiply_by_2π => mutiply_by_2π,
-        :lab_frame_type => lab_frame_type,
-        :drives => drives,
-    )
-
     return QuantumSystem(
         H_drift,
         H_drives,
@@ -113,7 +102,6 @@ struct QuantumSystemCoupling
     pair
     subsystem_levels
     coupling_type
-    params
 end
 
 @doc raw"""
@@ -170,18 +158,12 @@ function TransmonDipoleCoupling(
         op *= 2π
     end
 
-    params = Dict{Symbol, Any}(
-        :lab_frame => lab_frame,
-        :mulitply_by_2π => mulitply_by_2π,
-    )
-
     return QuantumSystemCoupling(
         op,
         g_ij,
         pair,
         subsystem_levels,
         TransmonDipoleCoupling,
-        params
     )
 end
 

@@ -15,23 +15,21 @@ function QuantumStateSamplingProblem(
     system_weights=fill(1.0, length(systems)),
     init_trajectory::Union{NamedTrajectory,Nothing}=nothing,
     state_name::Symbol=:ψ̃,
-    control_name::Symbol=:a,
+    control_name::Symbol = :u,
     timestep_name::Symbol=:Δt,
-    a_bound::Float64=1.0,
-    a_bounds=fill(a_bound, systems[1].n_drives),
-    a_guess::Union{Matrix{Float64},Nothing}=nothing,
-    da_bound::Float64=Inf,
-    da_bounds=fill(da_bound, systems[1].n_drives),
-    dda_bound::Float64=1.0,
-    dda_bounds=fill(dda_bound, systems[1].n_drives),
+    u_guess::Union{Matrix{Float64},Nothing}=nothing,
+    du_bound::Float64 = Inf,
+    du_bounds = fill(du_bound, systems[1].n_drives),
+    ddu_bound::Float64 = 1.0,
+    ddu_bounds = fill(ddu_bound, systems[1].n_drives),
     Δt_min::Float64=0.5 * minimum(Δt),
     Δt_max::Float64=2.0 * maximum(Δt),
     Q::Float64=100.0,
     R=1e-2,
-    R_a::Union{Float64,Vector{Float64}}=R,
-    R_da::Union{Float64,Vector{Float64}}=R,
-    R_dda::Union{Float64,Vector{Float64}}=R,
-    state_leakage_indices::Union{Nothing, AbstractVector{Int}}=nothing,
+    R_u::Union{Float64,Vector{Float64}} = R,
+    R_du::Union{Float64,Vector{Float64}} = R,
+    R_ddu::Union{Float64,Vector{Float64}} = R,
+    state_leakage_indices::Union{Nothing,AbstractVector{Int}}=nothing,
     constraints::Vector{<:AbstractConstraint}=AbstractConstraint[],
     piccolo_options::PiccoloOptions=PiccoloOptions(),
 )
@@ -54,10 +52,6 @@ function QuantumStateSamplingProblem(
         traj = init_trajectory
     else
         # TODO(main issue with this is that it doesn't handle composite systems correctly, will come back to this.
-        u_bounds = (
-            [systems[1].drive_bounds[j][1] for j in 1:length(systems[1].drive_bounds)],
-            [systems[1].drive_bounds[j][2] for j in 1:length(systems[1].drive_bounds)]
-        )
         trajs = map(zip(systems, state_names, ψ_inits, ψ_goals)) do (sys, names, ψis, ψgs)
             initialize_trajectory(
                 ψis,
@@ -65,21 +59,25 @@ function QuantumStateSamplingProblem(
                 T,
                 Δt,
                 sys.n_drives,
-                (a_bounds, da_bounds, dda_bounds);
+                (sys.drive_bounds, du_bounds, ddu_bounds);
                 state_names=names,
                 control_name=control_name,
                 timestep_name=timestep_name,
                 Δt_bounds=(Δt_min, Δt_max),
                 zero_initial_and_final_derivative=piccolo_options.zero_initial_and_final_derivative,
                 bound_state=piccolo_options.bound_state,
-                a_guess=a_guess,
+                u_guess = u_guess,
                 system=sys,
                 rollout_integrator=piccolo_options.rollout_integrator,
-                verbose=false # loop
+                verbose=false, # loop
             )
         end
 
-        traj = merge(trajs, merge_names=(a=1, da=1, dda=1, Δt=1), timestep=timestep_name)
+        traj = merge(
+            trajs,
+            merge_names = (u = 1, du = 1, ddu = 1, Δt = 1),
+            timestep = timestep_name,
+        )
     end
 
     control_names = [
@@ -88,10 +86,10 @@ function QuantumStateSamplingProblem(
     ]
 
     # Objective
-    J = QuadraticRegularizer(control_names[1], traj, R_a)
-    J += QuadraticRegularizer(control_names[2], traj, R_da)
-    J += QuadraticRegularizer(control_names[3], traj, R_dda)
-    
+    J = QuadraticRegularizer(control_names[1], traj, R_u)
+    J += QuadraticRegularizer(control_names[2], traj, R_du)
+    J += QuadraticRegularizer(control_names[3], traj, R_ddu)
+
     for (weight, names) in zip(system_weights, state_names)
         for name in names
             J += KetInfidelityObjective(name, traj, Q=weight * Q)
@@ -180,13 +178,17 @@ end
     # Separately compute all unique initial and goal state fidelities
     inits = []
     for sys in [sys1, sys2]
-        push!(inits, [rollout_fidelity(prob.trajectory, sys; state_name=n, control_name=:a) for n in state_names])
+        push!(
+            inits,
+            [rollout_fidelity(prob.trajectory, sys; state_name = n) for n in state_names],
+        )
     end
     
     solve!(prob, max_iter=20, print_level=1, verbose=false)
         
     for (init, sys) in zip(inits, [sys1, sys2])
-        final = [rollout_fidelity(prob.trajectory, sys, state_name=n, control_name=:a) for n in state_names]
+        final =
+            [rollout_fidelity(prob.trajectory, sys, state_name = n) for n in state_names]
         @test all(final .> init)
     end
 end
@@ -217,15 +219,19 @@ end
     # Separately compute all unique initial and goal state fidelities
     inits = []
     for sys in [sys1, sys2]
-        push!(inits, [rollout_fidelity(prob.trajectory, sys; state_name=n, control_name=:a) for n in state_names])
+        push!(
+            inits,
+            [rollout_fidelity(prob.trajectory, sys; state_name = n) for n in state_names],
+        )
     end
 
     solve!(prob, max_iter=20, print_level=1, verbose=false)
 
     for (init, sys) in zip(inits, [sys1, sys2])
-        final = [rollout_fidelity(prob.trajectory, sys, state_name=n, control_name=:a) for n in state_names]
+        final =
+            [rollout_fidelity(prob.trajectory, sys, state_name = n) for n in state_names]
         @test all(final .> init)
     end
 end
 
-# TODO: Test that a_guess can be used
+# TODO: Test that u_guess can be used

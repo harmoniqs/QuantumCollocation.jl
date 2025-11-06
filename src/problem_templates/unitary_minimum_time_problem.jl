@@ -21,10 +21,10 @@ Create a minimum-time problem for unitary control.
 
 ```math
 \begin{aligned}
-\underset{\vec{\tilde{U}}, a, \dot{a}, \ddot{a}, \Delta t}{\text{minimize}} & \quad
-J(\vec{\tilde{U}}, a, \dot{a}, \ddot{a}) + D \sum_t \Delta t_t \\
-\text{ subject to } & \quad \vb{P}^{(n)}\qty(\vec{\tilde{U}}_{t+1}, \vec{\tilde{U}}_t, a_t, \Delta t_t) = 0 \\
-& c(\vec{\tilde{U}}, a, \dot{a}, \ddot{a}) = 0 \\
+\underset{\vec{\tilde{U}}, u, \dot{u}, \ddot{u}, \Delta t}{\text{minimize}} & \quad
+J(\vec{\tilde{U}}, u, \dot{u}, \ddot{u}) + D \sum_t \Delta t_t \\
+\text{ subject to } & \quad \vb{P}^{(n)}\qty(\vec{\tilde{U}}_{t+1}, \vec{\tilde{U}}_t, u_t, \Delta t_t) = 0 \\
+& c(\vec{\tilde{U}}, u, \dot{u}, \ddot{u}) = 0 \\
 & \quad \Delta t_{\text{min}} \leq \Delta t_t \leq \Delta t_{\text{max}} \\
 \end{aligned}
 ```
@@ -169,9 +169,9 @@ end
         piccolo_options=PiccoloOptions(verbose=false)
     )
 
-    before = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+    before = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:u)
     solve!(prob; max_iter=150, verbose=false, print_level=1)
-    after = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+    after = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:u)
     @test after > before
 
     # soft fidelity constraint
@@ -184,7 +184,7 @@ end
     # test fidelity has stayed above the constraint
     constraint_tol = 0.95
     final_fidelity = minimum([0.99, after])
-    @test unitary_rollout_fidelity(min_prob.trajectory, sys, drive_name=:a) ≥ constraint_tol * final_fidelity
+    @test unitary_rollout_fidelity(min_prob.trajectory, sys, drive_name=:u) ≥ constraint_tol * final_fidelity
     duration_after = sum(get_timesteps(min_prob.trajectory))
     duration_before = sum(get_timesteps(prob.trajectory))
     @test duration_after <= duration_before

@@ -32,17 +32,6 @@ function CatSystem(;
     buffer_levels::Int=3,
     prefactor::Real=1,
 )
-    params = Dict(
-        :g2 => prefactor *  g2,
-        :χ_aa => prefactor *  χ_aa,
-        :χ_bb => prefactor *  χ_bb,
-        :χ_ab => prefactor *  χ_ab,
-        :κa => prefactor *  κa,
-        :κb => prefactor *  κb,
-        :cat_levels => cat_levels, 
-        :buffer_levels => buffer_levels, 
-        :prefactor => prefactor
-    )
 
     # Cat ⊗ Buffer
     a = annihilate(cat_levels) ⊗ Matrix(1.0I, buffer_levels, buffer_levels)
@@ -63,20 +52,5 @@ function CatSystem(;
         H_drift,
         H_drives,
         L_dissipators;
-        params=params
     )
 end
-
-function get_cat_controls(sys::AbstractQuantumSystem, α::Real, T::Int)
-    @assert haskey(sys.params, :g2) "Requires photon transfer coupling between buffer and cat"
-    @assert haskey(sys.params, :χ_aa) "Requires Kerr coupling for cat"
-    buffer_drive = abs2(α) * sys.params[:g2]
-    cat_kerr_correction = (2.0 * abs2(α) + 1.0) * sys.params[:χ_aa]
-    return stack([
-        fill(buffer_drive, T),
-        fill(cat_kerr_correction, T)
-    ], dims=1)
-end
-
-# *************************************************************************** #
-

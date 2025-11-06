@@ -35,19 +35,19 @@ using CairoMakie
 
 ## define the time parameters
 
-T₀ = 10     # total time in ns
-T = 50      # number of time steps
-Δt = T₀ / T # time step
+T₀ = 10.0   # total time in ns
+N = 50      # number of time steps
+Δt = T₀ / N # time step
 
 ## define the system parameters
 levels = 5
 δ = 0.2
 
 ## add a bound to the controls
-a_bound = 0.2
+u_bounds = [0.2, 0.2]
 
 ## create the system
-sys = TransmonSystem(levels=levels, δ=δ)
+sys = TransmonSystem(levels=levels, δ=δ, T_max=T₀, u_bounds=u_bounds)
 
 ## let's look at a drive
 get_drives(sys)[1] |> sparse
@@ -75,9 +75,12 @@ get_subspace_identity(op) |> sparse
 # We can then pass this embedded operator to the `UnitarySmoothPulseProblem` template to create the problem
 
 ## create the problem
-prob = UnitarySmoothPulseProblem(sys, op, T, Δt; a_bound=a_bound)
+prob = UnitarySmoothPulseProblem(sys, op, N, Δt)
 
 ## solve the problem
+load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_89ee72.jld2") # hide
+prob.trajectory = load_traj(load_path) # hide
+nothing # hide
 
 #=
 ```julia
@@ -88,11 +91,11 @@ solve!(prob; max_iter=50)
 <pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
         applying constraint: timesteps all equal constraint
         applying constraint: initial value of Ũ⃗
-        applying constraint: initial value of a
-        applying constraint: final value of a
-        applying constraint: bounds on a
-        applying constraint: bounds on da
-        applying constraint: bounds on dda
+        applying constraint: initial value of u
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
         applying constraint: bounds on Δt
 
 ******************************************************************************
@@ -152,25 +155,23 @@ Number of inequality constraint evaluations          = 0
 Number of equality constraint Jacobian evaluations   = 51
 Number of inequality constraint Jacobian evaluations = 0
 Number of Lagrangian Hessian evaluations             = 50
-Total seconds in IPOPT                               = 390.676
+Total seconds in IPOPT                               = 330.056
 
 EXIT: Maximum Number of Iterations Exceeded.
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
 ```
 =#
-load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_049034.jld2") # hide
-prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+
 
 # Let's look at the fidelity in the subspace
 
-fid = unitary_rollout_fidelity(prob.trajectory, sys; subspace=op.subspace, drive_name=:a)
+fid = unitary_rollout_fidelity(prob.trajectory, sys; subspace=op.subspace)
 println("Fidelity: ", fid)
 @assert fid > 0.99
 
 # and plot the result using the `plot_unitary_populations` function.
 
-plot_unitary_populations(prob.trajectory; fig_size=(900, 700), control_name=:a)
+plot_unitary_populations(prob.trajectory; fig_size=(900, 700))
 
 # ## Leakage suppresion
 # As can be seen from the above plot, there is a substantial amount of leakage into the higher levels during the evolution. To mitigate this, we have implemented a constraint to avoid populating the leakage levels, which should ideally drive those leakage populations down to zero.
@@ -178,9 +179,8 @@ plot_unitary_populations(prob.trajectory; fig_size=(900, 700), control_name=:a)
 
 ## create the a leakage suppression problem, initializing with the previous solution
 
-prob_leakage = UnitarySmoothPulseProblem(sys, op, T, Δt;
-    a_bound=a_bound,
-    a_guess=prob.trajectory.a[:, :],
+prob_leakage = UnitarySmoothPulseProblem(sys, op, N, Δt;
+    u_guess=prob.trajectory.u[:, :],
     piccolo_options=PiccoloOptions(
         leakage_constraint=true,
         leakage_constraint_value=1e-2,
@@ -189,7 +189,7 @@ prob_leakage = UnitarySmoothPulseProblem(sys, op, T, Δt;
 )
 
 ## solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_leakage_049034.jld2") # hide
+load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_leakage_89ee72.jld2") # hide
 prob_leakage.trajectory = load_traj(load_path) # hide
 nothing # hide
 
@@ -202,11 +202,11 @@ solve!(prob_leakage; max_iter=250)
 <pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
         applying constraint: timesteps all equal constraint
         applying constraint: initial value of Ũ⃗
-        applying constraint: initial value of a
-        applying constraint: final value of a
-        applying constraint: bounds on a
-        applying constraint: bounds on da
-        applying constraint: bounds on dda
+        applying constraint: initial value of u
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
         applying constraint: bounds on Δt
 This is Ipopt version 3.14.19, running with linear solver MUMPS 5.8.1.
 
@@ -237,8 +237,7 @@ iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
  246  1.7355438e-03 1.21e-05 1.17e-02  -4.0 1.11e-02  -2.0 1.00e+00 1.00e+00h  1
  247  1.7084108e-03 5.16e-05 2.32e-02  -4.0 1.95e-02  -2.4 1.00e+00 1.00e+00h  1
  248  1.7080428e-03 2.11e-05 1.73e-02  -4.0 1.68e-02  -2.0 1.00e+00 1.00e+00h  1
- 249  1.6359863e-03 1.07e-04 3.64e-02  -4.0 3.43e-02  -2.5 1.00e+00 1.00e+00h  1
-iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  
  250  1.6487637e-03 4.14e-05 2.81e-02  -4.0 2.77e-02  -2.1 1.00e+00 1.00e+00h  1
 
 Number of Iterations....: 250
@@ -259,7 +258,7 @@ Number of inequality constraint evaluations          = 270
 Number of equality constraint Jacobian evaluations   = 251
 Number of inequality constraint Jacobian evaluations = 251
 Number of Lagrangian Hessian evaluations             = 250
-Total seconds in IPOPT                               = 2276.038
+Total seconds in IPOPT                               = 1864.901
 
 EXIT: Maximum Number of Iterations Exceeded.
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
@@ -268,12 +267,12 @@ EXIT: Maximum Number of Iterations Exceeded.
 
 # Let's look at the fidelity in the subspace
 
-fid_leakage = unitary_rollout_fidelity(prob_leakage.trajectory, sys; subspace=op.subspace, drive_name=:a)
+fid_leakage = unitary_rollout_fidelity(prob_leakage.trajectory, sys; subspace=op.subspace)
 println("Fidelity: ", fid_leakage)
 @assert fid_leakage > 0.99
 
 # and plot the result using the `plot_unitary_populations` function.
 
-plot_unitary_populations(prob_leakage.trajectory; fig_size=(900, 700), control_name=:a)
+plot_unitary_populations(prob_leakage.trajectory; fig_size=(900, 700))
 
 # Here we can see that the leakage populations have been driven substantially down.
