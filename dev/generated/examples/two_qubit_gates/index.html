@@ -26,7 +26,7 @@ Id = GATES[:I]
 
 # Define the parameters of the Hamiltonian
 J_12 = 0.001 # GHz
-a_bound = 0.100 # GHz
+u_bound = 0.100 # GHz
 
 # Define the drift (coupling) Hamiltonian
 H_drift = J_12 * (σx ⊗ σx)
@@ -34,27 +34,21 @@ H_drift = J_12 * (σx ⊗ σx)
 # Define the control Hamiltonians
 H_drives = [σx_1 / 2, σy_1 / 2, σx_2 / 2, σy_2 / 2]
 
-# Define control (and higher derivative) bounds
-a_bound = 0.1
-da_bound = 0.0005
-dda_bound = 0.0025
+# Define higher derivative bounds
+du_bound = 0.0005
+ddu_bound = 0.0025
 
 # Scale the Hamiltonians by 2π
 H_drift *= 2π
 H_drives .*= 2π
 
 # Define the time parameters
-T = 100 # timesteps
+N = 100 # timesteps
 T_max = 1.0 # max evolution time
-u_bounds = [
-    (-1.0, 1.0),
-    (-1.0, 1.0),
-    (-1.0, 1.0),
-    (-1.0, 1.0)
-]
+u_bounds = fill((-u_bound, u_bound), length(H_drives))
 duration = 100 # μs
-Δt = duration / T
-Δt_max = 400 / T
+Δt = duration / N
+Δt_max = 400 / N
 
 # Define the system
 sys = QuantumSystem(H_drift, H_drives, T_max, u_bounds)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">QuantumSystem: levels = 4, n_drives = 4</code></pre><h2 id="SWAP-gate"><a class="docs-heading-anchor" href="#SWAP-gate">SWAP gate</a><a id="SWAP-gate-1"></a><a class="docs-heading-anchor-permalink" href="#SWAP-gate" title="Permalink"></a></h2><pre><code class="language-julia hljs"># Define the goal operation
@@ -69,29 +63,28 @@ U_goal = [
 prob = UnitarySmoothPulseProblem(
     sys,
     U_goal,
-    T,
+    N,
     Δt;
-    a_bound=a_bound,
-    da_bound=da_bound,
-    dda_bound=dda_bound,
-    R_da=0.01,
-    R_dda=0.01,
+    du_bound=du_bound,
+    ddu_bound=ddu_bound,
+    R_du=0.01,
+    R_ddu=0.01,
     Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
-fid_init = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+fid_init = unitary_rollout_fidelity(prob.trajectory, sys)
 println(fid_init)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    constructing UnitarySmoothPulseProblem...
 	using integrator: typeof(UnitaryIntegrator)
-	control derivative names: [:da, :dda]
+	control derivative names: [:du, :ddu]
 	applying timesteps_all_equal constraint: Δt
 0.00039542607543285754</code></pre><p>Solve the problem</p><pre><code class="language-julia hljs">solve!(prob; max_iter=100)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
         applying constraint: timesteps all equal constraint
         applying constraint: initial value of Ũ⃗
-        applying constraint: initial value of a
-        applying constraint: final value of a
-        applying constraint: bounds on a
-        applying constraint: bounds on da
-        applying constraint: bounds on dda
+        applying constraint: initial value of u
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
         applying constraint: bounds on Δt
         applying constraint: bounds on Ũ⃗
 
@@ -156,50 +149,49 @@ Total seconds in IPOPT                               = 470.209
 
 EXIT: Maximum Number of Iterations Exceeded.
 </code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre><pre><code class="language-julia hljs"># Let&#39;s take a look at the final fidelity
-fid_final = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+fid_final = unitary_rollout_fidelity(prob.trajectory, sys)
 println(fid_final)
-@assert fid_final &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9999986984382394</code></pre><p>Looks good!</p><p>Now let&#39;s plot the pulse and the population trajectories for the first two columns of the unitary, i.e. initial state of <span>$\ket{00}$</span> and <span>$\ket{01}$</span>. For this we provide the function <a href="@ref"><code>plot_unitary_populations</code></a>.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob.trajectory, control_name=:a)</code></pre><img src="9ce1029d.png" alt="Example block output"/><p>For fun, let&#39;s look at a minimum time pulse for this problem</p><pre><code class="language-julia hljs">min_time_prob = UnitaryMinimumTimeProblem(prob, U_goal; final_fidelity=.995)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DirectTrajOptProblem
+@assert fid_final &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9999999999989653</code></pre><p>Looks good!</p><p>Now let&#39;s plot the pulse and the population trajectories for the first two columns of the unitary, i.e. initial state of <span>$\ket{00}$</span> and <span>$\ket{01}$</span>. For this we provide the function <a href="@ref"><code>plot_unitary_populations</code></a>.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob.trajectory)</code></pre><img src="9cd1944f.png" alt="Example block output"/><p>For fun, let&#39;s look at a minimum time pulse for this problem</p><pre><code class="language-julia hljs">min_time_prob = UnitaryMinimumTimeProblem(prob, U_goal; final_fidelity=.995)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DirectTrajOptProblem
    timesteps            = 100
-   duration             = 376.46706725712096
-   variable names       = (:Ũ⃗, :a, :da, :dda, :Δt)
+   duration             = 303.6472044127768
+   variable names       = (:Ũ⃗, :u, :du, :ddu, :Δt)
    knot point dimension = 45
-</code></pre><pre><code class="language-julia hljs">solve!(min_time_prob; max_iter=300)</code></pre><pre><code class="language-julia hljs">fid_final_min_time = unitary_rollout_fidelity(min_time_prob.trajectory, sys, drive_name=:a)
+</code></pre><p>and solve the problem</p><pre><code class="language-julia hljs">solve!(min_time_prob; max_iter=300)</code></pre><pre><code class="language-julia hljs">fid_final_min_time = unitary_rollout_fidelity(min_time_prob.trajectory, sys)
 println(fid_final_min_time)
-@assert fid_final_min_time &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9949999904950233</code></pre><p>And let&#39;s plot this solution</p><pre><code class="language-julia hljs">plot_unitary_populations(min_time_prob.trajectory, control_name=:a)</code></pre><img src="7e6d2809.png" alt="Example block output"/><p>It looks like our pulse derivative bounds are holding back the solution, but regardless, the duration has decreased:</p><pre><code class="language-julia hljs">duration = get_duration(prob.trajectory)
+@assert fid_final_min_time &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9995016866379185</code></pre><p>And let&#39;s plot this solution</p><pre><code class="language-julia hljs">plot_unitary_populations(min_time_prob.trajectory)</code></pre><img src="a2146a3c.png" alt="Example block output"/><p>It looks like our pulse derivative bounds are holding back the solution, but regardless, the duration has decreased:</p><pre><code class="language-julia hljs">duration = get_duration(prob.trajectory)
 min_time_duration = get_duration(min_time_prob.trajectory)
-println(duration, &quot; - &quot;, min_time_duration, &quot; = &quot;, duration - min_time_duration)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">376.46706725712096 - 355.4858483001799 = 20.981218956941063</code></pre><h2 id="Mølmer–Sørensen-gate"><a class="docs-heading-anchor" href="#Mølmer–Sørensen-gate">Mølmer–Sørensen gate</a><a id="Mølmer–Sørensen-gate-1"></a><a class="docs-heading-anchor-permalink" href="#Mølmer–Sørensen-gate" title="Permalink"></a></h2><p>Here we will solve for a <a href="https://en.wikipedia.org/wiki/M%C3%B8lmer%E2%80%93S%C3%B8rensen_gate">Mølmer–Sørensen gate</a> between two. The gate is generally described, for N qubits, by the unitary matrix</p><p class="math-container">\[U_{\text{MS}}(\vec\theta) = \exp\left(i\sum_{j=1}^{N-1}\sum_{k=j+1}^{N}\theta_{jk}\sigma_j^x\sigma_k^x\right),\]</p><p>where <span>$\sigma_j^x$</span> is the Pauli-X operator acting on the <span>$j$</span>-th qubit, and <span>$\vec\theta$</span> is a vector of real parameters. The Mølmer–Sørensen gate is a two-qubit gate that is particularly well-suited for trapped-ion qubits, where the interaction between qubits is mediated.</p><p>Here we will focus on the simplest case of a Mølmer–Sørensen gate between two qubits. The gate is described by the unitary matrix</p><p class="math-container">\[U_{\text{MS}}\left({\pi \over 4}\right) = \exp\left(i\frac{\pi}{4}\sigma_1^x\sigma_2^x\right).\]</p><p>Let&#39;s set up the problem.</p><pre><code class="language-julia hljs"># Define the goal operation
-U_goal = exp(im * π/4 * σx_1 * σx_2)
+println(duration, &quot; - &quot;, min_time_duration, &quot; = &quot;, duration - min_time_duration)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">303.6472044127768 - 121.44854984525388 = 182.1986545675229</code></pre><h2 id="Mølmer–Sørensen-gate"><a class="docs-heading-anchor" href="#Mølmer–Sørensen-gate">Mølmer–Sørensen gate</a><a id="Mølmer–Sørensen-gate-1"></a><a class="docs-heading-anchor-permalink" href="#Mølmer–Sørensen-gate" title="Permalink"></a></h2><p>Here we will solve for a <a href="https://en.wikipedia.org/wiki/M%C3%B8lmer%E2%80%93S%C3%B8rensen_gate">Mølmer–Sørensen gate</a> between two. The gate is generally described, for N qubits, by the unitary matrix</p><p class="math-container">\[U_{\text{MS}}(\vec\theta) = \exp\left(i\sum_{j=1}^{N-1}\sum_{k=j+1}^{N}\theta_{jk}\sigma_j^x\sigma_k^x\right),\]</p><p>where <span>$\sigma_j^x$</span> is the Pauli-X operator acting on the <span>$j$</span>-th qubit, and <span>$\vec\theta$</span> is a vector of real parameters. The Mølmer–Sørensen gate is a two-qubit gate that is particularly well-suited for trapped-ion qubits, where the interaction between qubits is mediated.</p><p>Here we will focus on the simplest case of a Mølmer–Sørensen gate between two qubits. The gate is described by the unitary matrix</p><p class="math-container">\[U_{\text{MS}}\left({\pi \over 4}\right) = \exp\left(i\frac{\pi}{4}\sigma_1^x\sigma_2^x\right).\]</p><pre><code class="language-julia hljs"># Define the goal operation
+U_goal_ms = exp(im * π/4 * σx_1 * σx_2)
 
 # Set up and solve the problem
 
-prob = UnitarySmoothPulseProblem(
+prob_ms = UnitarySmoothPulseProblem(
     sys,
-    U_goal,
-    T,
+    U_goal_ms,
+    N,
     Δt;
-    a_bound=a_bound,
-    da_bound=da_bound,
-    dda_bound=dda_bound,
-    R_da=0.01,
-    R_dda=0.01,
+    du_bound=du_bound,
+    ddu_bound=ddu_bound,
+    R_du=0.01,
+    R_ddu=0.01,
     Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
-fid_init = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+fid_init = unitary_rollout_fidelity(prob_ms.trajectory, sys)
 println(fid_init)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    constructing UnitarySmoothPulseProblem...
 	using integrator: typeof(UnitaryIntegrator)
-	control derivative names: [:da, :dda]
+	control derivative names: [:du, :ddu]
 	applying timesteps_all_equal constraint: Δt
-0.12249963901581312</code></pre><pre><code class="language-julia hljs">solve!(prob; max_iter=300)</code></pre><pre><code class="language-julia hljs"># Let&#39;s take a look at the final fidelity
-fid_final = unitary_rollout_fidelity(prob.trajectory, sys, drive_name=:a)
+0.12249963901581312</code></pre><p>Solve the problem</p><pre><code class="language-julia hljs">solve!(prob; max_iter=300)</code></pre><pre><code class="language-julia hljs"># Let&#39;s take a look at the final fidelity
+fid_final = unitary_rollout_fidelity(prob_ms.trajectory, sys)
 println(fid_final)
-@assert fid_final &gt; 0.999</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9999494300031536</code></pre><p>Again, looks good!</p><p>Now let&#39;s plot the pulse and the population trajectories for the first two columns of the unitary, i.e. initial state of <span>$\ket{00}$</span> and <span>$\ket{01}$</span>.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob.trajectory, control_name=:a)</code></pre><img src="97ba3876.png" alt="Example block output"/><p>For fun, let&#39;s look at a minimum time pulse for this problem</p><pre><code class="language-julia hljs">min_time_prob = UnitaryMinimumTimeProblem(prob, U_goal; final_fidelity=.9995)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DirectTrajOptProblem
+@assert fid_final &gt; 0.999</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9999999999983091</code></pre><p>Again, looks good!</p><p>Now let&#39;s plot the pulse and the population trajectories for the first two columns of the unitary, i.e. initial state of <span>$\ket{00}$</span> and <span>$\ket{01}$</span>.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob_ms.trajectory)</code></pre><img src="d393a4c3.png" alt="Example block output"/><p>For fun, let&#39;s look at a minimum time pulse for this problem</p><pre><code class="language-julia hljs">min_time_prob_ms = UnitaryMinimumTimeProblem(prob_ms, U_goal_ms; final_fidelity=.9995)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DirectTrajOptProblem
    timesteps            = 100
-   duration             = 312.9535256034742
-   variable names       = (:Ũ⃗, :a, :da, :dda, :Δt)
+   duration             = 309.5482397525694
+   variable names       = (:Ũ⃗, :u, :du, :ddu, :Δt)
    knot point dimension = 45
-</code></pre><pre><code class="language-julia hljs">solve!(min_time_prob; max_iter=300)</code></pre><pre><code class="language-julia hljs">fid_final_min_time = unitary_rollout_fidelity(min_time_prob.trajectory, sys, drive_name=:a)
+</code></pre><p>and solve the problem</p><pre><code class="language-julia hljs">solve!(min_time_prob; max_iter=300)</code></pre><pre><code class="language-julia hljs">fid_final_min_time = unitary_rollout_fidelity(min_time_prob_ms.trajectory, sys)
 println(fid_final_min_time)
-@assert fid_final_min_time &gt; 0.999</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9994999899999919</code></pre><p>And let&#39;s plot this solution</p><pre><code class="language-julia hljs">plot_unitary_populations(min_time_prob.trajectory, control_name=:a)</code></pre><img src="d378386e.png" alt="Example block output"/><p>It looks like our pulse derivative bounds are holding back the solution, but regardless, the duration has decreased:</p><pre><code class="language-julia hljs">duration = get_duration(prob.trajectory)
-min_time_duration = get_duration(min_time_prob.trajectory)
-println(duration, &quot; - &quot;, min_time_duration, &quot; = &quot;, duration - min_time_duration)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">312.9535256034742 - 121.44085505155924 = 191.51267055191494</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../man/unitary_problem_templates/">« Unitary Problem Templates</a><a class="docs-footer-nextpage" href="../multilevel_transmon/">Multilevel Transmon »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Monday 3 November 2025 03:57">Monday 3 November 2025</span>. Using Julia version 1.12.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+@assert fid_final_min_time &gt; 0.999</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9994999902795181</code></pre><p>And let&#39;s plot this solution</p><pre><code class="language-julia hljs">plot_unitary_populations(min_time_prob_ms.trajectory)</code></pre><img src="ede490b8.png" alt="Example block output"/><p>It looks like our pulse derivative bounds are holding back the solution, but regardless, the duration has decreased:</p><pre><code class="language-julia hljs">duration = get_duration(prob_ms.trajectory)
+min_time_duration = get_duration(min_time_prob_ms.trajectory)
+println(duration, &quot; - &quot;, min_time_duration, &quot; = &quot;, duration - min_time_duration)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">309.5482397525694 - 236.01619239930056 = 73.53204735326881</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../man/unitary_problem_templates/">« Unitary Problem Templates</a><a class="docs-footer-nextpage" href="../multilevel_transmon/">Multilevel Transmon »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Thursday 6 November 2025 00:51">Thursday 6 November 2025</span>. Using Julia version 1.12.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

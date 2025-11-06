@@ -15,19 +15,19 @@ using CairoMakie
 
 # define the time parameters
 
-T₀ = 10     # total time in ns
-T = 50      # number of time steps
-Δt = T₀ / T # time step
+T₀ = 10.0   # total time in ns
+N = 50      # number of time steps
+Δt = T₀ / N # time step
 
 # define the system parameters
 levels = 5
 δ = 0.2
 
 # add a bound to the controls
-a_bound = 0.2
+u_bounds = [0.2, 0.2]
 
 # create the system
-sys = TransmonSystem(levels=levels, δ=δ)
+sys = TransmonSystem(levels=levels, δ=δ, T_max=T₀, u_bounds=u_bounds)
 
 # let&#39;s look at a drive
 get_drives(sys)[1] |&gt; sparse</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">5×5 SparseArrays.SparseMatrixCSC{ComplexF64, Int64} with 8 stored entries:
@@ -57,21 +57,19 @@ get_subspace_identity(op) |&gt; sparse</code></pre><pre class="documenter-exampl
      ⋅          ⋅          ⋅          ⋅          ⋅    
      ⋅          ⋅          ⋅          ⋅          ⋅    
      ⋅          ⋅          ⋅          ⋅          ⋅    </code></pre><p>We can then pass this embedded operator to the <code>UnitarySmoothPulseProblem</code> template to create the problem</p><pre><code class="language-julia hljs"># create the problem
-prob = UnitarySmoothPulseProblem(sys, op, T, Δt; a_bound=a_bound)
+prob = UnitarySmoothPulseProblem(sys, op, N, Δt)
 
-# solve the problem</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">DirectTrajOptProblem
-   timesteps            = 50
-   duration             = 9.799999999999997
-   variable names       = (:Ũ⃗, :a, :da, :dda, :Δt)
-   knot point dimension = 57
-</code></pre><pre><code class="language-julia hljs">solve!(prob; max_iter=50)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
+# solve the problem</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    constructing UnitarySmoothPulseProblem...
+	using integrator: typeof(UnitaryIntegrator)
+	control derivative names: [:du, :ddu]
+	applying timesteps_all_equal constraint: Δt</code></pre><pre><code class="language-julia hljs">solve!(prob; max_iter=50)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
         applying constraint: timesteps all equal constraint
         applying constraint: initial value of Ũ⃗
-        applying constraint: initial value of a
-        applying constraint: final value of a
-        applying constraint: bounds on a
-        applying constraint: bounds on da
-        applying constraint: bounds on dda
+        applying constraint: initial value of u
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
         applying constraint: bounds on Δt
 
 ******************************************************************************
@@ -131,16 +129,15 @@ Number of inequality constraint evaluations          = 0
 Number of equality constraint Jacobian evaluations   = 51
 Number of inequality constraint Jacobian evaluations = 0
 Number of Lagrangian Hessian evaluations             = 50
-Total seconds in IPOPT                               = 390.676
+Total seconds in IPOPT                               = 330.056
 
 EXIT: Maximum Number of Iterations Exceeded.
-</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre><p>Let&#39;s look at the fidelity in the subspace</p><pre><code class="language-julia hljs">fid = unitary_rollout_fidelity(prob.trajectory, sys; subspace=op.subspace, drive_name=:a)
+</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre><p>Let&#39;s look at the fidelity in the subspace</p><pre><code class="language-julia hljs">fid = unitary_rollout_fidelity(prob.trajectory, sys; subspace=op.subspace)
 println(&quot;Fidelity: &quot;, fid)
-@assert fid &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fidelity: 0.9977791511191532</code></pre><p>and plot the result using the <code>plot_unitary_populations</code> function.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob.trajectory; fig_size=(900, 700), control_name=:a)</code></pre><img src="6950b357.png" alt="Example block output"/><h2 id="Leakage-suppresion"><a class="docs-heading-anchor" href="#Leakage-suppresion">Leakage suppresion</a><a id="Leakage-suppresion-1"></a><a class="docs-heading-anchor-permalink" href="#Leakage-suppresion" title="Permalink"></a></h2><p>As can be seen from the above plot, there is a substantial amount of leakage into the higher levels during the evolution. To mitigate this, we have implemented a constraint to avoid populating the leakage levels, which should ideally drive those leakage populations down to zero. To implement this, pass <code>leakage_constraint=true</code> and set <code>leakage_constraint_value={value}</code> and <code>leakage_cost={value}</code> to the <code>PiccoloOptions</code> instance passed to the <code>UnitarySmoothPulseProblem</code> template.</p><pre><code class="language-julia hljs"># create the a leakage suppression problem, initializing with the previous solution
+@assert fid &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fidelity: 0.9977791511191532</code></pre><p>and plot the result using the <code>plot_unitary_populations</code> function.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob.trajectory; fig_size=(900, 700))</code></pre><img src="d7ff17df.png" alt="Example block output"/><h2 id="Leakage-suppresion"><a class="docs-heading-anchor" href="#Leakage-suppresion">Leakage suppresion</a><a id="Leakage-suppresion-1"></a><a class="docs-heading-anchor-permalink" href="#Leakage-suppresion" title="Permalink"></a></h2><p>As can be seen from the above plot, there is a substantial amount of leakage into the higher levels during the evolution. To mitigate this, we have implemented a constraint to avoid populating the leakage levels, which should ideally drive those leakage populations down to zero. To implement this, pass <code>leakage_constraint=true</code> and set <code>leakage_constraint_value={value}</code> and <code>leakage_cost={value}</code> to the <code>PiccoloOptions</code> instance passed to the <code>UnitarySmoothPulseProblem</code> template.</p><pre><code class="language-julia hljs"># create the a leakage suppression problem, initializing with the previous solution
 
-prob_leakage = UnitarySmoothPulseProblem(sys, op, T, Δt;
-    a_bound=a_bound,
-    a_guess=prob.trajectory.a[:, :],
+prob_leakage = UnitarySmoothPulseProblem(sys, op, N, Δt;
+    u_guess=prob.trajectory.u[:, :],
     piccolo_options=PiccoloOptions(
         leakage_constraint=true,
         leakage_constraint_value=1e-2,
@@ -150,16 +147,16 @@ prob_leakage = UnitarySmoothPulseProblem(sys, op, T, Δt;
 
 # solve the problem</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    constructing UnitarySmoothPulseProblem...
 	using integrator: typeof(UnitaryIntegrator)
-	control derivative names: [:da, :dda]
+	control derivative names: [:du, :ddu]
 	applying leakage suppression: Ũ⃗ &lt; 0.01
 	applying timesteps_all_equal constraint: Δt</code></pre><pre><code class="language-julia hljs">solve!(prob_leakage; max_iter=250)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
         applying constraint: timesteps all equal constraint
         applying constraint: initial value of Ũ⃗
-        applying constraint: initial value of a
-        applying constraint: final value of a
-        applying constraint: bounds on a
-        applying constraint: bounds on da
-        applying constraint: bounds on dda
+        applying constraint: initial value of u
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
         applying constraint: bounds on Δt
 This is Ipopt version 3.14.19, running with linear solver MUMPS 5.8.1.
 
@@ -190,8 +187,7 @@ iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
  246  1.7355438e-03 1.21e-05 1.17e-02  -4.0 1.11e-02  -2.0 1.00e+00 1.00e+00h  1
  247  1.7084108e-03 5.16e-05 2.32e-02  -4.0 1.95e-02  -2.4 1.00e+00 1.00e+00h  1
  248  1.7080428e-03 2.11e-05 1.73e-02  -4.0 1.68e-02  -2.0 1.00e+00 1.00e+00h  1
- 249  1.6359863e-03 1.07e-04 3.64e-02  -4.0 3.43e-02  -2.5 1.00e+00 1.00e+00h  1
-iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+
  250  1.6487637e-03 4.14e-05 2.81e-02  -4.0 2.77e-02  -2.1 1.00e+00 1.00e+00h  1
 
 Number of Iterations....: 250
@@ -212,9 +208,9 @@ Number of inequality constraint evaluations          = 270
 Number of equality constraint Jacobian evaluations   = 251
 Number of inequality constraint Jacobian evaluations = 251
 Number of Lagrangian Hessian evaluations             = 250
-Total seconds in IPOPT                               = 2276.038
+Total seconds in IPOPT                               = 1864.901
 
 EXIT: Maximum Number of Iterations Exceeded.
-</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre><p>Let&#39;s look at the fidelity in the subspace</p><pre><code class="language-julia hljs">fid_leakage = unitary_rollout_fidelity(prob_leakage.trajectory, sys; subspace=op.subspace, drive_name=:a)
+</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre><p>Let&#39;s look at the fidelity in the subspace</p><pre><code class="language-julia hljs">fid_leakage = unitary_rollout_fidelity(prob_leakage.trajectory, sys; subspace=op.subspace)
 println(&quot;Fidelity: &quot;, fid_leakage)
-@assert fid_leakage &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fidelity: 0.9999982047329167</code></pre><p>and plot the result using the <code>plot_unitary_populations</code> function.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob_leakage.trajectory; fig_size=(900, 700), control_name=:a)</code></pre><img src="b978e59e.png" alt="Example block output"/><p>Here we can see that the leakage populations have been driven substantially down.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../two_qubit_gates/">« Two Qubit Gates</a><a class="docs-footer-nextpage" href="../../../lib/">Library »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Monday 3 November 2025 03:57">Monday 3 November 2025</span>. Using Julia version 1.12.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+@assert fid_leakage &gt; 0.99</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Fidelity: 0.9999982047329167</code></pre><p>and plot the result using the <code>plot_unitary_populations</code> function.</p><pre><code class="language-julia hljs">plot_unitary_populations(prob_leakage.trajectory; fig_size=(900, 700))</code></pre><img src="eba23a99.png" alt="Example block output"/><p>Here we can see that the leakage populations have been driven substantially down.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../two_qubit_gates/">« Two Qubit Gates</a><a class="docs-footer-nextpage" href="../../../lib/">Library »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Thursday 6 November 2025 00:51">Thursday 6 November 2025</span>. Using Julia version 1.12.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
