@@ -25,30 +25,30 @@ const ⊗ = kron
 
 # Dispatch on quantum trajectory types
 function BilinearIntegrator(qtraj::UnitaryTrajectory)
-    sys = system(qtraj)
-    traj = trajectory(qtraj)
+    sys = get_system(qtraj)
+    traj = get_trajectory(qtraj)
     Ĝ = u_ -> I(sys.levels) ⊗ sys.G(u_, 0.0)
-    return BilinearIntegrator(Ĝ, state_name(qtraj), control_name(qtraj))
+    return BilinearIntegrator(Ĝ, get_state_name(qtraj), get_control_name(qtraj))
 end
 
 function BilinearIntegrator(qtraj::KetTrajectory)
-    sys = system(qtraj)
-    traj = trajectory(qtraj)
+    sys = get_system(qtraj)
+    traj = get_trajectory(qtraj)
     Ĝ = u_ -> sys.G(u_, 0.0)
     
     # If only one state, return single integrator
     if length(qtraj.state_names) == 1
-        return BilinearIntegrator(Ĝ, qtraj.state_names[1], control_name(qtraj))
+        return BilinearIntegrator(Ĝ, qtraj.state_names[1], get_control_name(qtraj))
     end
     
     # Multiple states: return vector of integrators, one for each state
-    return [BilinearIntegrator(Ĝ, name, control_name(qtraj)) for name in qtraj.state_names]
+    return [BilinearIntegrator(Ĝ, name, get_control_name(qtraj)) for name in qtraj.state_names]
 end
 
 function BilinearIntegrator(qtraj::DensityTrajectory)
-    sys = system(qtraj)
-    traj = trajectory(qtraj)
-    return BilinearIntegrator(sys.𝒢, state_name(qtraj), control_name(qtraj))
+    sys = get_system(qtraj)
+    traj = get_trajectory(qtraj)
+    return BilinearIntegrator(sys.𝒢, get_state_name(qtraj), get_control_name(qtraj))
 end
 
 # ----------------------------------------------------------------------------- #

@@ -52,10 +52,10 @@ qtraj[:Ũ⃗]  # state data
 qtraj[:u]   # control data
 
 # Access metadata
-system(qtraj)       # the QuantumSystem
-goal(qtraj)         # target operator
-state_name(qtraj)   # :Ũ⃗
-control_name(qtraj) # :u
+get_system(qtraj)       # the QuantumSystem
+get_goal(qtraj)         # target operator
+get_state_name(qtraj)   # :Ũ⃗
+get_control_name(qtraj) # :u
 
 # Convenience accessors
 state(qtraj)     # qtraj[:Ũ⃗]

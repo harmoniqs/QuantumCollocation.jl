@@ -3,15 +3,13 @@ module QuantumCollocation
 using Reexport
 
 @reexport using DirectTrajOpt
+@reexport using PiccoloQuantumObjects
 
 include("piccolo_options.jl")
 @reexport using .Options
 
-include("trajectory_initialization.jl")
-@reexport using .TrajectoryInitialization
-
-include("quantum_trajectories.jl")
-@reexport using .QuantumTrajectories
+include("quantum_control_problem.jl")
+@reexport using .QuantumControlProblems
 
 include("quantum_objectives.jl")
 @reexport using .QuantumObjectives
@@ -24,8 +22,5 @@ include("quantum_integrators.jl")
 
 include("problem_templates/_problem_templates.jl")
 @reexport using .ProblemTemplates
-
-include("quantum_system_templates/_quantum_system_templates.jl")
-@reexport using .QuantumSystemTemplates
 
 end

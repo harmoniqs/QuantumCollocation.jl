@@ -42,10 +42,10 @@ println("✓ Created UnitaryTrajectory")
 
 # User can create custom integrator using trajectory info
 custom_integrator = UnitaryIntegrator(
-    system(qtraj2),
-    trajectory(qtraj2),
-    state_name(qtraj2),
-    control_name(qtraj2)
+    get_system(qtraj2),
+    get_trajectory(qtraj2),
+    get_state_name(qtraj2),
+    get_control_name(qtraj2)
 )
 println("✓ Created custom UnitaryIntegrator")
 println("  Type: ", typeof(custom_integrator))
@@ -67,8 +67,8 @@ println("✓ Created dynamics integrator")
 
 # Add derivative constraints directly using underlying trajectory
 using DirectTrajOpt
-du_integrator = DerivativeIntegrator(trajectory(qtraj3), :u, :du)
-ddu_integrator = DerivativeIntegrator(trajectory(qtraj3), :du, :ddu)
+du_integrator = DerivativeIntegrator(get_trajectory(qtraj3), :u, :du)
+ddu_integrator = DerivativeIntegrator(get_trajectory(qtraj3), :du, :ddu)
 println("✓ Created derivative integrators")
 
 # Combine all integrators
@@ -106,4 +106,4 @@ println()
 println("Key Takeaway:")
 println("  • Use default_integrator(qtraj) for simple cases")
 println("  • Create custom integrators when you need control")
-println("  • Access trajectory info via system(), trajectory(), state_name(), etc.")
+println("  • Access trajectory info via get_system(), get_trajectory(), get_state_name(), etc.")

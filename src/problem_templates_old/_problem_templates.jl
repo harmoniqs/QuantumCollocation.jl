@@ -1,9 +1,10 @@
 module ProblemTemplates
 
+using ..TrajectoryInitialization
 using ..QuantumObjectives
 using ..QuantumConstraints
 using ..QuantumIntegrators
-using ..QuantumControlProblems: QuantumControlProblem
+using ..QuantumTrajectories
 using ..Options
 
 using TrajectoryIndexingUtils
@@ -19,7 +20,16 @@ using TestItems
 const ⊗ = kron
 
 include("smooth_pulse_problem.jl")
-include("minimum_time_problem.jl")
+include("unitary_smooth_pulse_problem.jl")
+include("unitary_variational_problem.jl")
+include("unitary_minimum_time_problem.jl")
+include("unitary_sampling_problem.jl")
+include("unitary_free_phase_problem.jl")
+
+include("quantum_state_smooth_pulse_problem.jl")
+include("quantum_state_minimum_time_problem.jl")
+include("quantum_state_sampling_problem.jl")
+
 
 function apply_piccolo_options!(
     piccolo_options::PiccoloOptions,

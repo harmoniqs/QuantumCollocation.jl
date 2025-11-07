@@ -3,7 +3,7 @@ export SmoothPulseProblem
 @doc raw"""
     SmoothPulseProblem(qtraj::AbstractQuantumTrajectory; kwargs...)
 
-Construct a `QuantumControlProblem` for smooth pulse optimization that dispatches on the quantum trajectory type.
+Construct a `DirectTrajOptProblem` for smooth pulse optimization that dispatches on the quantum trajectory type.
 
 This unified interface replaces `UnitarySmoothPulseProblem`, `QuantumStateSmoothPulseProblem`, etc.
 The problem automatically:
@@ -27,27 +27,21 @@ The problem automatically:
 - `constraints::Vector{<:AbstractConstraint}=AbstractConstraint[]`: Additional constraints
 - `piccolo_options::PiccoloOptions=PiccoloOptions()`: Piccolo solver options
 
-# Returns
-- `QuantumControlProblem`: Wrapper containing quantum trajectory and optimization problem
-
 # Examples
 ```julia
 # Unitary gate synthesis
 sys = QuantumSystem(H_drift, H_drives, T, drive_bounds)
 qtraj = UnitaryTrajectory(sys, U_goal, N)
-qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
-solve!(qcp; max_iter=100)
+prob = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
 
 # Quantum state transfer
 qtraj = KetTrajectory(sys, ψ_init, ψ_goal, N)
-qcp = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
-solve!(qcp)
+prob = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
 
 # Open system
 open_sys = OpenQuantumSystem(H_drift, H_drives, T, drive_bounds)
 qtraj = DensityTrajectory(open_sys, ρ_init, ρ_goal, N)
-qcp = SmoothPulseProblem(qtraj; Q=100.0)
-solve!(qcp)
+prob = SmoothPulseProblem(qtraj; Q=100.0)
 ```
 """
 function SmoothPulseProblem(
@@ -68,16 +62,16 @@ function SmoothPulseProblem(
     end
     
     # Extract info from quantum trajectory
-    sys = get_system(qtraj)
-    state_sym = get_state_name(qtraj)
-    control_sym = get_control_name(qtraj)
+    sys = system(qtraj)
+    state_sym = state_name(qtraj)
+    control_sym = control_name(qtraj)
     
     # Add control derivatives to trajectory (always 2 derivatives for smooth pulses)
     du_bounds = fill(du_bound, sys.n_drives)
     ddu_bounds = fill(ddu_bound, sys.n_drives)
     
     traj_smooth = add_control_derivatives(
-        get_trajectory(qtraj),
+        trajectory(qtraj),
         2;  # Always use 2 derivatives
         control_name=control_sym,
         derivative_bounds=(du_bounds, ddu_bounds)
@@ -124,14 +118,12 @@ function SmoothPulseProblem(
         push!(integrators, TimeIntegrator())
     end
     
-    prob = DirectTrajOptProblem(
+    return DirectTrajOptProblem(
         traj_smooth,
         J,
         integrators;
         constraints=constraints
     )
-    
-    return QuantumControlProblem(qtraj, prob)
 end
 
 # ============================================================================= #
@@ -140,7 +132,7 @@ end
 
 # Unitary trajectory: single infidelity objective
 function _state_objective(qtraj::UnitaryTrajectory, traj::NamedTrajectory, state_sym::Symbol, Q::Float64)
-    U_goal = get_goal(qtraj)
+    U_goal = goal(qtraj)
     return UnitaryInfidelityObjective(U_goal, state_sym, traj; Q=Q)
 end
 
@@ -177,7 +169,7 @@ function _apply_piccolo_options(
     traj::NamedTrajectory,
     state_sym::Symbol
 )
-    U_goal = get_goal(qtraj)
+    U_goal = goal(qtraj)
     return apply_piccolo_options!(
         piccolo_options, constraints, traj;
         state_names=state_sym,
@@ -228,18 +220,13 @@ end
     
     sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 1.0, [1.0, 1.0])
     qtraj = UnitaryTrajectory(sys, GATES[:H], 10)
-    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+    prob = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
     
-    @test qcp isa QuantumControlProblem
-    @test length(qcp.prob.integrators) == 3  # dynamics + du + ddu
-    @test haskey(qcp.prob.trajectory.components, :u)
-    @test haskey(qcp.prob.trajectory.components, :du)
-    @test haskey(qcp.prob.trajectory.components, :ddu)
-    
-    # Test accessors
-    @test get_system(qcp) === sys
-    @test get_goal(qcp) === GATES[:H]
-    @test get_trajectory(qcp) === qcp.prob.trajectory
+    @test prob isa DirectTrajOptProblem
+    @test length(prob.integrators) == 3  # dynamics + du + ddu
+    @test haskey(prob.trajectory.components, :u)
+    @test haskey(prob.trajectory.components, :du)
+    @test haskey(prob.trajectory.components, :ddu)
 end
 
 @testitem "SmoothPulseProblem with KetTrajectory" begin
@@ -250,15 +237,15 @@ end
     ψ_init = ComplexF64[1.0, 0.0]
     ψ_goal = ComplexF64[0.0, 1.0]
     qtraj = KetTrajectory(sys, ψ_init, ψ_goal, 10)
-    qcp = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
+    prob = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
     
-    @test qcp isa QuantumControlProblem
-    @test length(qcp.prob.integrators) == 3
-    @test haskey(qcp.prob.trajectory.components, :du)
-    @test haskey(qcp.prob.trajectory.components, :ddu)
+    @test prob isa DirectTrajOptProblem
+    @test length(prob.integrators) == 3
+    @test haskey(prob.trajectory.components, :du)
+    @test haskey(prob.trajectory.components, :ddu)
 
     # Test problem solve
-    solve!(qcp, max_iter=5, print_level=1, verbose=false)
+    solve!(prob, max_iter=5, print_level=1, verbose=false)
 end
 
 @testitem "SmoothPulseProblem with KetTrajectory (multiple states)" begin
@@ -278,26 +265,26 @@ end
     ]
     
     qtraj = KetTrajectory(sys, ψ_inits, ψ_goals, 10)
-    qcp = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
+    prob = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
     
-    @test qcp isa QuantumControlProblem
-    @test haskey(qcp.prob.trajectory.components, :du)
-    @test haskey(qcp.prob.trajectory.components, :ddu)
+    @test prob isa DirectTrajOptProblem
+    @test haskey(prob.trajectory.components, :du)
+    @test haskey(prob.trajectory.components, :ddu)
     
     # Should have multiple state variables
-    @test haskey(qcp.prob.trajectory.components, :ψ̃1)
-    @test haskey(qcp.prob.trajectory.components, :ψ̃2)
+    @test haskey(prob.trajectory.components, :ψ̃1)
+    @test haskey(prob.trajectory.components, :ψ̃2)
 
     num_states = length(ψ_inits)
 
     # Total integrators: num_states dynamics + 2 derivative integrators
-    @test length(qcp.prob.integrators) == num_states + 2
+    @test length(prob.integrators) == num_states + 2
     
     # Check that the objective includes contributions from both states
-    @test qcp.prob.objective isa Objective
+    @test prob.objective isa Objective
 
     # Test problem solve
-    solve!(qcp, max_iter=5, print_level=1, verbose=false)
+    solve!(prob, max_iter=5, print_level=1, verbose=false)
 end
 
 @testitem "SmoothPulseProblem with DensityTrajectory" begin
@@ -308,11 +295,11 @@ end
     ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]
     ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]
     qtraj = DensityTrajectory(sys, ρ_init, ρ_goal, 10)
-    qcp = SmoothPulseProblem(qtraj; Q=100.0)
+    prob = SmoothPulseProblem(qtraj; Q=100.0)
     
-    @test qcp isa QuantumControlProblem
-    @test length(qcp.prob.integrators) == 3
+    @test prob isa DirectTrajOptProblem
+    @test length(prob.integrators) == 3
 
     # Test problem solve
-    solve!(qcp, max_iter=5, print_level=1, verbose=false)
+    solve!(prob, max_iter=5, print_level=1, verbose=false)
 end
