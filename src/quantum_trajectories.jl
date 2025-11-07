@@ -88,11 +88,10 @@ struct UnitaryTrajectory <: AbstractQuantumTrajectory
         Δt_min::Float64=sys.T_max / (2 * (N-1)),
         Δt_max::Float64=2 * sys.T_max / (N-1),
         free_time::Bool=true,
-        geodesic::Bool=true,
-        store_times::Bool=false
+        geodesic::Bool=true
     )
         Δt = sys.T_max / (N - 1)
-        n_drives = length(sys.H_drives)
+        n_drives = sys.n_drives
         
         # Initialize unitary trajectory
         if geodesic
@@ -120,9 +119,9 @@ struct UnitaryTrajectory <: AbstractQuantumTrajectory
         final = (u = zeros(n_drives),)
         goal_constraint = (Ũ⃗ = Ũ⃗_goal,)
         
-        # Time data
-        if store_times
-            t_data = [0.0; cumsum(Δt_vec)[1:end-1]]
+        # Time data (automatic for time-dependent systems)
+        if sys.time_dependent
+            t_data = cumsum([0.0; Δt_vec[1:end-1]])
             initial = merge(initial, (t = [0.0],))
         end
         
@@ -137,16 +136,14 @@ struct UnitaryTrajectory <: AbstractQuantumTrajectory
         
         # Build component data
         comps_data = (Ũ⃗ = Ũ⃗, u = u, Δt = reshape(Δt_vec, 1, N))
-        controls = (:u, :Δt)
         
-        if store_times
+        if sys.time_dependent
             comps_data = merge(comps_data, (t = reshape(t_data, 1, N),))
-            controls = (controls..., :t)
         end
         
         traj = NamedTrajectory(
             comps_data;
-            controls = controls,
+            controls = (:u, :Δt),
             timestep = :Δt,
             initial = initial,
             final = final,
@@ -200,13 +197,12 @@ struct KetTrajectory <: AbstractQuantumTrajectory
         state_names::Union{AbstractVector{<:Symbol}, Nothing}=nothing,
         Δt_min::Float64=sys.T_max / (2 * (N-1)),
         Δt_max::Float64=2 * sys.T_max / (N-1),
-        free_time::Bool=true,
-        store_times::Bool=false
+        free_time::Bool=true
     )
         @assert length(ψ_inits) == length(ψ_goals) "ψ_inits and ψ_goals must have the same length"
         
         Δt = sys.T_max / (N - 1)
-        n_drives = length(sys.H_drives)
+        n_drives = sys.n_drives
         n_states = length(ψ_inits)
         
         # Generate state names if not provided
@@ -245,8 +241,8 @@ struct KetTrajectory <: AbstractQuantumTrajectory
         final = (u = zeros(n_drives),)
         goal_constraint = goal_states
         
-        # Time data
-        if store_times
+        # Time data (automatic for time-dependent systems)
+        if sys.time_dependent
             t_data = [0.0; cumsum(Δt_vec)[1:end-1]]
             initial = merge(initial, (t = [0.0],))
         end
@@ -263,16 +259,14 @@ struct KetTrajectory <: AbstractQuantumTrajectory
         # Build component data
         state_data = NamedTuple{Tuple(state_names)}(Tuple(ψ̃_trajs))
         comps_data = merge(state_data, (u = u, Δt = reshape(Δt_vec, 1, N)))
-        controls = (:u, :Δt)
         
-        if store_times
+        if sys.time_dependent
             comps_data = merge(comps_data, (t = reshape(t_data, 1, N),))
-            controls = (controls..., :t)
         end
         
         traj = NamedTrajectory(
             comps_data;
-            controls = controls,
+            controls = (:u, :Δt),
             timestep = :Δt,
             initial = initial,
             final = final,
@@ -314,11 +308,10 @@ struct DensityTrajectory <: AbstractQuantumTrajectory
         N::Int;
         Δt_min::Float64=sys.T_max / (2 * (N-1)),
         Δt_max::Float64=2 * sys.T_max / (N-1),
-        free_time::Bool=true,
-        store_times::Bool=false
+        free_time::Bool=true
     )
         Δt = sys.T_max / (N - 1)
-        n_drives = length(sys.H_drives)
+        n_drives = sys.n_drives
         
         # Convert to iso representation
         ρ⃗̃_init = density_to_iso_vec(ρ_init)
@@ -342,8 +335,8 @@ struct DensityTrajectory <: AbstractQuantumTrajectory
         final = (u = zeros(n_drives),)
         goal_constraint = (ρ⃗̃ = ρ⃗̃_goal,)
         
-        # Time data
-        if store_times
+        # Time data (automatic for time-dependent systems)
+        if sys.time_dependent
             t_data = [0.0; cumsum(Δt_vec)[1:end-1]]
             initial = merge(initial, (t = [0.0],))
         end
@@ -358,17 +351,15 @@ struct DensityTrajectory <: AbstractQuantumTrajectory
         )
         
         # Build component data
-        comps_data = (ρ⃗̃ = ρ⃗̃, u = u, Δt = reshape(Δt_vec, 1, N))
-        controls = (:u, :Δt)
+        comps_data = (Ũ⃗ = Ũ⃗, u = u, Δt = reshape(Δt_vec, 1, N))
         
-        if store_times
+        if sys.time_dependent
             comps_data = merge(comps_data, (t = reshape(t_data, 1, N),))
-            controls = (controls..., :t)
         end
         
         traj = NamedTrajectory(
             comps_data;
-            controls = controls,
+            controls = (:u, :Δt),
             timestep = :Δt,
             initial = initial,
             final = final,
@@ -394,7 +385,8 @@ end
         GATES[:Z],              # H_drift
         [GATES[:X], GATES[:Y]], # H_drives
         1.0,                    # T_max
-        [1.0, 1.0]             # drive_bounds
+        [1.0, 1.0];             # drive_bounds
+        time_dependent=false
     )
     
     N = 10
@@ -430,13 +422,9 @@ end
     @test qtraj4.bounds[:Δt][1][1] == 0.05
     @test qtraj4.bounds[:Δt][2][1] == 0.2
     
-    # Test with store_times=true
-    qtraj5 = UnitaryTrajectory(sys, U_goal, N; store_times=true)
-    @test qtraj5 isa UnitaryTrajectory
-    @test haskey(qtraj5.components, :t)
-    @test size(qtraj5[:t], 2) == N
-    @test qtraj5[:t][1] ≈ 0.0
-    @test qtraj5.initial[:t][1] ≈ 0.0
+    # Test that time is NOT stored for non-time-dependent systems
+    @test !haskey(qtraj.components, :t)
+    @test :t ∉ keys(qtraj.components)
     
     # Test with linear interpolation (geodesic=false)
     qtraj6 = UnitaryTrajectory(sys, U_goal, N; geodesic=false)
@@ -503,13 +491,9 @@ end
     @test size(qtraj6[:ψ̃_b], 2) == N
     @test state_name(qtraj6) == :ψ̃_a  # First state name
     
-    # Test with store_times=true
-    qtraj7 = KetTrajectory(sys, ψ_init, ψ_goal, N; store_times=true)
-    @test qtraj7 isa KetTrajectory
-    @test haskey(qtraj7.components, :t)
-    @test size(qtraj7[:t], 2) == N
-    @test qtraj7[:t][1] ≈ 0.0
-    @test qtraj7.initial[:t][1] ≈ 0.0
+    # Test that time is NOT stored for non-time-dependent systems
+    @test !haskey(qtraj.components, :t)
+    @test :t ∉ keys(qtraj.components)
 end
 
 @testitem "DensityTrajectory high-level constructor" begin
@@ -552,13 +536,166 @@ end
     @test qtraj4.bounds[:Δt][1][1] == 0.05
     @test qtraj4.bounds[:Δt][2][1] == 0.2
     
-    # Test with store_times=true
-    qtraj5 = DensityTrajectory(sys, ρ_init, ρ_goal, N; store_times=true)
-    @test qtraj5 isa DensityTrajectory
-    @test haskey(qtraj5.components, :t)
-    @test size(qtraj5[:t], 2) == N
-    @test qtraj5[:t][1] ≈ 0.0
-    @test qtraj5.initial[:t][1] ≈ 0.0
+    # Test that time is NOT stored for non-time-dependent systems
+    @test !haskey(qtraj.components, :t)
+    @test :t ∉ keys(qtraj.components)
+end
+
+@testitem "Time-dependent Hamiltonians with UnitaryTrajectory" begin
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    using LinearAlgebra
+    
+    # Create time-dependent Hamiltonian: H(u, t) = H_drift + u(t) * cos(ω*t) * H_drive
+    ω = 2π * 5.0  # Drive frequency
+    H_drift = GATES[:Z]
+    H_drive = GATES[:X]
+    
+    H(u, t) = H_drift + u[1] * cos(ω * t) * H_drive
+    
+    # Create system with time-dependent flag
+    sys = QuantumSystem(H, 1.0, [1.0]; time_dependent=true)
+    
+    N = 10
+    U_goal = GATES[:H]
+    
+    # Test that time storage is automatic for time-dependent systems
+    qtraj = UnitaryTrajectory(sys, U_goal, N)
+    @test qtraj isa UnitaryTrajectory
+    @test haskey(qtraj.components, :t)
+    @test size(qtraj[:t], 2) == N
+    @test qtraj[:t][1] ≈ 0.0
+    @test qtraj.initial[:t][1] ≈ 0.0
+    
+    # Verify time values are cumulative sums of Δt
+    Δt_cumsum = [0.0; cumsum(qtraj[:Δt][:])[1:end-1]]
+    @test qtraj[:t][:] ≈ Δt_cumsum
+    
+    # Test with custom time bounds
+    qtraj2 = UnitaryTrajectory(sys, U_goal, N; Δt_min=0.05, Δt_max=0.15)
+    @test qtraj2 isa UnitaryTrajectory
+    @test haskey(qtraj2.components, :t)
+    
+    # Test that time is included in components (but not controls)
+    @test :t ∈ keys(qtraj.components)
+    @test :t ∉ qtraj.control_names
+end
+
+@testitem "Time-dependent Hamiltonians with KetTrajectory" begin
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    using LinearAlgebra
+    
+    # Create time-dependent Hamiltonian
+    ω = 2π * 5.0
+    H_drift = GATES[:Z]
+    H_drive = GATES[:X]
+    
+    H(u, t) = H_drift + u[1] * cos(ω * t) * H_drive
+    
+    # Create system with time-dependent flag
+    sys = QuantumSystem(H, 1.0, [1.0]; time_dependent=true)
+    
+    N = 10
+    ψ_init = ComplexF64[1.0, 0.0]
+    ψ_goal = ComplexF64[0.0, 1.0]
+    
+    # Test single state with time-dependent system (automatic time storage)
+    qtraj = KetTrajectory(sys, ψ_init, ψ_goal, N)
+    @test qtraj isa KetTrajectory
+    @test haskey(qtraj.components, :t)
+    @test size(qtraj[:t], 2) == N
+    @test qtraj[:t][1] ≈ 0.0
+    @test qtraj.initial[:t][1] ≈ 0.0
+    
+    # Verify time values are cumulative sums of Δt
+    Δt_cumsum = [0.0; cumsum(qtraj[:Δt][:])[1:end-1]]
+    @test qtraj[:t][:] ≈ Δt_cumsum
+    
+    # Test with multiple states
+    ψ2_init = ComplexF64[0.0, 1.0]
+    ψ2_goal = ComplexF64[1.0, 0.0]
+    qtraj2 = KetTrajectory(sys, [ψ_init, ψ2_init], [ψ_goal, ψ2_goal], N)
+    @test qtraj2 isa KetTrajectory
+    @test haskey(qtraj2.components, :t)
+    @test size(qtraj2[:ψ̃1], 2) == N
+    @test size(qtraj2[:ψ̃2], 2) == N
+    @test size(qtraj2[:t], 2) == N
+    
+    # Test that time is included in components (but not controls)
+    @test :t ∈ keys(qtraj.components)
+    @test :t ∉ qtraj.control_names
+end
+
+@testitem "Time-dependent Hamiltonians with DensityTrajectory" begin
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    using LinearAlgebra
+    
+    # Create time-dependent Hamiltonian
+    ω = 2π * 5.0
+    H_drift = GATES[:Z]
+    H_drive = GATES[:X]
+    
+    H(u, t) = H_drift + u[1] * cos(ω * t) * H_drive
+    
+    # Create open system with time-dependent Hamiltonian
+    sys = OpenQuantumSystem(H, 1.0, [1.0]; time_dependent=true)
+    
+    N = 10
+    ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]  # |0⟩⟨0|
+    ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]  # |1⟩⟨1|
+    
+    # Test with time-dependent system (automatic time storage)
+    qtraj = DensityTrajectory(sys, ρ_init, ρ_goal, N)
+    @test qtraj isa DensityTrajectory
+    @test haskey(qtraj.components, :t)
+    @test size(qtraj[:t], 2) == N
+    @test qtraj[:t][1] ≈ 0.0
+    @test qtraj.initial[:t][1] ≈ 0.0
+    
+    # Verify time values are cumulative sums of Δt
+    Δt_cumsum = [0.0; cumsum(qtraj[:Δt][:])[1:end-1]]
+    @test qtraj[:t][:] ≈ Δt_cumsum
+    
+    # Test that time is included in components (but not controls)
+    @test :t ∈ keys(qtraj.components)
+    @test :t ∉ qtraj.control_names
+end
+
+@testitem "Multiple drives with time-dependent Hamiltonians" begin
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    using LinearAlgebra
+    
+    # Create time-dependent Hamiltonian with multiple drives
+    ω1 = 2π * 5.0
+    ω2 = 2π * 3.0
+    H_drift = GATES[:Z]
+    H_drives = [GATES[:X], GATES[:Y]]
+    
+    H(u, t) = H_drift + u[1] * cos(ω1 * t) * H_drives[1] + u[2] * cos(ω2 * t) * H_drives[2]
+    
+    # Create system with multiple drives
+    sys = QuantumSystem(H, 1.0, [1.0, 1.0]; time_dependent=true)
+    
+    N = 10
+    U_goal = GATES[:H]
+    
+    # Test with multiple drives (automatic time storage)
+    qtraj = UnitaryTrajectory(sys, U_goal, N)
+    @test qtraj isa UnitaryTrajectory
+    @test size(qtraj[:u], 1) == 2  # 2 drives
+    @test haskey(qtraj.components, :t)
+    @test size(qtraj[:t], 2) == N
+    
+    # Test initial and final control constraints
+    @test all(qtraj[:u][:, 1] .== 0.0)  # Initial controls are zero
+    @test all(qtraj[:u][:, end] .== 0.0)  # Final controls are zero
+    
+    # Test bounds on multiple drives
+    @test qtraj.bounds[:u][1] == [-1.0, -1.0]  # Lower bounds
+    @test qtraj.bounds[:u][2] == [1.0, 1.0]    # Upper bounds
 end
 
 end

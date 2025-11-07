@@ -111,7 +111,12 @@ function SmoothPulseProblem(
    
     # Derivative integrators (always 2 for smooth pulses)
     push!(integrators, DerivativeIntegrator(control_names[1], control_names[2]))
+
     push!(integrators, DerivativeIntegrator(control_names[2], control_names[3]))
+
+    if qtraj.system.time_dependent
+        push!(integrators, TimeIntegrator())
+    end
     
     return DirectTrajOptProblem(
         traj_smooth,
