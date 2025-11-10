@@ -57,7 +57,7 @@ function apply_piccolo_options!(
         end
         push!(
             constraints,
-            TimeStepsAllEqualConstraint(traj)
+            TimeStepsAllEqualConstraint()
         )
     end
 

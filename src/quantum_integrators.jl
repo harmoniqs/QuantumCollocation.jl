@@ -65,25 +65,25 @@ function VariationalKetIntegrator(
 ) 
     var_ψ̃ = vcat(ψ̃, ψ̃_variations...)
     G = a -> Isomorphisms.var_G(sys.G(a), [G(a) / scale for G in sys.G_vars])
-    return BilinearIntegrator(G, traj, var_ψ̃, a)
+    return BilinearIntegrator(G, var_ψ̃, a)
 end
 
 function VariationalUnitaryIntegrator(
     sys::VariationalQuantumSystem,
     traj::NamedTrajectory, 
-    Ũ⃗::Symbol, 
-    Ũ⃗_variations::AbstractVector{Symbol},
+    Ũ⃗::Symbol, 
+    Ũ⃗_variations::AbstractVector{Symbol},
     a::Symbol;
     scales::AbstractVector{<:Float64}=fill(1.0, length(sys.G_vars)),
 )
-    var_Ũ⃗ = vcat(Ũ⃗, Ũ⃗_variations...)
+    var_Ũ⃗ = vcat(Ũ⃗, Ũ⃗_variations...)
 
-    function Ĝ(a)
+    function Ĝ(a)
         G0 = sys.G(a)
         Gs = typeof(G0)[I(sys.levels) ⊗ G(a) / scale for (scale, G) in zip(scales, sys.G_vars)]
         return Isomorphisms.var_G(I(sys.levels) ⊗ G0, Gs)
     end
-    return BilinearIntegrator(Ĝ, traj, var_Ũ⃗, a)
+    return BilinearIntegrator(Ĝ, var_Ũ⃗, a)
 end
 
 # ----------------------------------------------------------------------------- #

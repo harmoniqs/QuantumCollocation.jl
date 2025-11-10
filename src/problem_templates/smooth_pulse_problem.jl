@@ -294,7 +294,7 @@ end
     @test length(qcp.prob.integrators) == num_states + 2
     
     # Check that the objective includes contributions from both states
-    @test qcp.prob.objective isa Objective
+    @test qcp.prob.objective isa AbstractObjective
 
     # Test problem solve
     solve!(qcp, max_iter=5, print_level=1, verbose=false)
