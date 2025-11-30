@@ -10,6 +10,8 @@ using TrajectoryIndexingUtils
 using NamedTrajectories
 using DirectTrajOpt
 using PiccoloQuantumObjects
+using PiccoloQuantumObjects: build_sampling_trajectory, build_ensemble_trajectory_from_trajectories, 
+    get_ensemble_state_names, update_base_trajectory, SamplingTrajectory, EnsembleTrajectory
 
 using ExponentialAction
 using LinearAlgebra
@@ -20,13 +22,14 @@ const ⊗ = kron
 
 include("smooth_pulse_problem.jl")
 include("minimum_time_problem.jl")
+include("sampling_problem.jl")
 
 function apply_piccolo_options!(
     piccolo_options::PiccoloOptions,
     constraints::AbstractVector{<:AbstractConstraint},
     traj::NamedTrajectory;
-    state_names::Union{Nothing, Symbol, AbstractVector{Symbol}}=nothing,
-    state_leakage_indices::Union{Nothing, AbstractVector{Int}, AbstractVector{<:AbstractVector{Int}}}=nothing,
+    state_names::Union{Nothing,Symbol,AbstractVector{Symbol}}=nothing,
+    state_leakage_indices::Union{Nothing,AbstractVector{Int},AbstractVector{<:AbstractVector{Int}}}=nothing,
 )
     J = NullObjective(traj)
 

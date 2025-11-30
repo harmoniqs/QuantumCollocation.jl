@@ -2,8 +2,8 @@ module QuantumCollocation
 
 using Reexport
 
-@reexport using DirectTrajOpt
-@reexport using PiccoloQuantumObjects
+using DirectTrajOpt
+using PiccoloQuantumObjects
 
 include("piccolo_options.jl")
 @reexport using .Options

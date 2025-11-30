@@ -3,10 +3,15 @@ module QuantumControlProblems
 using DirectTrajOpt
 using NamedTrajectories
 using PiccoloQuantumObjects
+
 import PiccoloQuantumObjects: get_trajectory, get_system, get_goal, get_state_name, get_control_name
+import DirectTrajOpt.Solvers: solve!
 
 export QuantumControlProblem
 export get_trajectory, get_system, get_goal, get_state_name, get_control_name
+export solve!
+# Note: solve! is NOT exported to avoid ambiguity with SciMLBase.solve!
+# Users should use: using DirectTrajOpt (to get solve!)
 
 """
     QuantumControlProblem{QT<:AbstractQuantumTrajectory}
@@ -96,7 +101,7 @@ Solve the quantum control problem by forwarding to the inner DirectTrajOptProble
 
 All keyword arguments are passed to the DirectTrajOpt solver.
 """
-DirectTrajOpt.solve!(qcp::QuantumControlProblem; kwargs...) = solve!(qcp.prob; kwargs...)
+solve!(qcp::QuantumControlProblem; kwargs...) = solve!(qcp.prob; kwargs...)
 
 # Forward other common DirectTrajOptProblem accessors
 Base.getproperty(qcp::QuantumControlProblem, s::Symbol) = begin

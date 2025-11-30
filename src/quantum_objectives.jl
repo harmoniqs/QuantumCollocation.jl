@@ -25,6 +25,11 @@ function ket_fidelity_loss(
     return abs2(ψ_goal' * ψ)
 end 
 
+"""
+    KetInfidelityObjective(ψ̃_name, traj; Q=100.0)
+
+Create a terminal objective for ket state infidelity, using the goal from `traj.goal[ψ̃_name]`.
+"""
 function KetInfidelityObjective(
     ψ̃_name::Symbol,
     traj::NamedTrajectory;
@@ -32,6 +37,32 @@ function KetInfidelityObjective(
 )
     ψ_goal = iso_to_ket(traj.goal[ψ̃_name])
     ℓ = ψ̃ -> abs(1 - ket_fidelity_loss(ψ̃, ψ_goal))
+    return TerminalObjective(ℓ, ψ̃_name, traj; Q=Q)
+end
+
+"""
+    KetInfidelityObjective(ψ_goal, ψ̃_name, traj; Q=100.0)
+
+Create a terminal objective for ket state infidelity with an explicit goal state.
+
+This variant is useful for SamplingProblem and EnsembleTrajectory where the goal
+is shared across multiple state variables that don't have individual goals in `traj.goal`.
+
+# Arguments
+- `ψ_goal::AbstractVector{<:Complex}`: The target ket state (complex vector)
+- `ψ̃_name::Symbol`: Name of the isomorphic state variable in the trajectory
+- `traj::NamedTrajectory`: The trajectory
+
+# Keyword Arguments
+- `Q::Float64=100.0`: Weight on the infidelity objective
+"""
+function KetInfidelityObjective(
+    ψ_goal::AbstractVector{<:Complex},
+    ψ̃_name::Symbol,
+    traj::NamedTrajectory;
+    Q=100.0
+)
+    ℓ = ψ̃ -> abs(1 - ket_fidelity_loss(ψ̃, ComplexF64.(ψ_goal)))
     return TerminalObjective(ℓ, ψ̃_name, traj; Q=Q)
 end
 
@@ -176,5 +207,10 @@ function LeakageObjective(
     )
 end
 
+# ---------------------------------------------------------
+#                       Tests
+# ---------------------------------------------------------
+
+using TestItems
 
 end
