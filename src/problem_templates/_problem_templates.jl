@@ -11,7 +11,7 @@ using NamedTrajectories
 using DirectTrajOpt
 using PiccoloQuantumObjects
 using PiccoloQuantumObjects: build_sampling_trajectory, build_ensemble_trajectory_from_trajectories, 
-    get_ensemble_state_names, update_base_trajectory, SamplingTrajectory, EnsembleTrajectory
+    get_ensemble_state_names, get_weights, update_base_trajectory, SamplingTrajectory, EnsembleTrajectory
 
 using ExponentialAction
 using LinearAlgebra
