@@ -244,8 +244,6 @@ end
 
     integrator = BilinearIntegrator(qtraj)
 
-    display(qtraj.components)
-
     @test integrator isa BilinearIntegrator
     test_integrator(integrator, get_trajectory(qtraj); atol=1e-2, show_hessian_diff=true)
 end
