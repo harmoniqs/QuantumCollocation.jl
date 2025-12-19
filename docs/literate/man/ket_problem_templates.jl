@@ -32,10 +32,31 @@ state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, N);
 println("Before: ", rollout_fidelity(state_prob.trajectory, system))
 
 # _solve the problem_
-solve!(state_prob, max_iter=100);
+# load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_89ee72.jld2") # hide
+# state_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(state_prob, max_iter=100);
+
+#=
+```julia
+```
+
+```@raw html
+<pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
+        applying constraint: timesteps all equal constraint
+        applying constraint: initial value of ψ̃
+        applying constraint: initial value of u
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
+        applying constraint: bounds on Δt
+</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
+```
+=#
 
 # _check the fidelity after solving_
-println("After: ", rollout_fidelity(state_prob.trajectory, system))
+println("After: ", rollout_fidelity(state_prob.trajectory, system, control_name=:u))
 
 # _extract the control pulses_
 state_prob.trajectory.u |> size
@@ -57,7 +78,28 @@ min_state_prob = QuantumStateMinimumTimeProblem(state_prob, ψ_goal);
 println("Duration before: ", get_duration(state_prob.trajectory))
 
 # _solve the minimum time problem_
-solve!(min_state_prob, max_iter=100);
+# load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_min_time_89ee72.jld2") # hide
+# min_state_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(min_state_prob, max_iter=100);
+
+#=
+```julia
+```
+
+```@raw html
+<pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
+        applying constraint: timesteps all equal constraint
+        applying constraint: initial value of ψ̃
+        applying constraint: initial value of u
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
+        applying constraint: bounds on Δt
+</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
+```
+=#
 
 # _check the new duration_
 println("Duration after: ", get_duration(min_state_prob.trajectory))
@@ -84,7 +126,29 @@ sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ
 println(sampling_state_prob.trajectory.state_names)
 
 # _solve the sampling problem for a few iterations_
-solve!(sampling_state_prob, max_iter=25);
+# load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_sampling_state_89ee72.jld2") # hide
+# sampling_state_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(sampling_state_prob, max_iter=25);
+
+#=
+```julia
+```
+
+```@raw html
+<pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
+        applying constraint: timesteps all equal constraint
+        applying constraint: initial value of ψ̃1_system_1
+        applying constraint: initial value of u
+        applying constraint: initial value of ψ̃1_system_2
+        applying constraint: final value of u
+        applying constraint: bounds on u
+        applying constraint: bounds on du
+        applying constraint: bounds on ddu
+        applying constraint: bounds on Δt
+</code><button class="copy-button fa-solid fa-copy" aria-label="Copy this code block" title="Copy"></button></pre>
+```
+=#
 
 # _check the fidelity of the sampling problem (use the updated key to get the initial and goal)_
 println("After (original system): ", rollout_fidelity(sampling_state_prob.trajectory, system, state_name=:ψ̃1_system_1))
