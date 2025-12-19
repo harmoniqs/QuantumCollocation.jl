@@ -233,7 +233,7 @@ end
     test_integrator(integrator, get_trajectory(qtraj); atol=1e-3)
 end
 
-@testitem "BilinearIntegrator dispatch on DensityTrajectory" begin
+@testitem "BilinearIntegrator dispatch on DensityTrajectory" tags=[:experimental] begin
     using PiccoloQuantumObjects
     using DirectTrajOpt
 

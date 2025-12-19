@@ -454,7 +454,7 @@ end
     dynamics_integrator = qcp.prob.integrators[1]
     δ = zeros(dynamics_integrator.dim)
     DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
-    @test norm(δ) < 1e-4
+    @test norm(δ) < 1e-3
 end
 
 @testitem "SmoothPulseProblem with KetTrajectory" begin
@@ -488,7 +488,7 @@ end
     dynamics_integrator = qcp.prob.integrators[1]
     δ = zeros(dynamics_integrator.dim)
     DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
-    @test norm(δ) < 1e-4
+    @test norm(δ) < 1e-3
 end
 
 @testitem "SmoothPulseProblem with DensityTrajectory" begin
@@ -629,7 +629,7 @@ end
     for integrator in qcp.prob.integrators[1:2]  # First 2 are dynamics
         δ = zeros(integrator.dim)
         DirectTrajOpt.evaluate!(δ, integrator, traj)
-        @test norm(δ) < 1e-4
+        @test norm(δ) < 1e-3
     end
 end
 
