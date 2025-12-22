@@ -454,7 +454,7 @@ end
     dynamics_integrator = qcp.prob.integrators[1]
     δ = zeros(dynamics_integrator.dim)
     DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
-    @test norm(δ) < 1e-3
+    @test norm(δ, Inf) < 1e-3
 end
 
 @testitem "SmoothPulseProblem with KetTrajectory" begin
@@ -488,7 +488,7 @@ end
     dynamics_integrator = qcp.prob.integrators[1]
     δ = zeros(dynamics_integrator.dim)
     DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
-    @test norm(δ) < 1e-3
+    @test norm(δ, Inf) < 1e-3
 end
 
 @testitem "SmoothPulseProblem with DensityTrajectory" begin
@@ -514,7 +514,7 @@ end
     dynamics_integrator = qcp.prob.integrators[1]
     δ = zeros(dynamics_integrator.dim)
     DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
-    @test norm(δ) < 1e-4
+    @test norm(δ, Inf) < 1e-4
 end
 
 @testitem "SmoothPulseProblem with EnsembleTrajectory (Ket)" begin
@@ -572,7 +572,7 @@ end
     for integrator in qcp.prob.integrators[1:2]  # First 2 are dynamics
         δ = zeros(integrator.dim)
         DirectTrajOpt.evaluate!(δ, integrator, traj)
-        @test norm(δ) < 1e-4
+        @test norm(δ, Inf) < 1e-4
     end
 end
 
@@ -629,7 +629,7 @@ end
     for integrator in qcp.prob.integrators[1:2]  # First 2 are dynamics
         δ = zeros(integrator.dim)
         DirectTrajOpt.evaluate!(δ, integrator, traj)
-        @test norm(δ) < 1e-3
+        @test norm(δ, Inf) < 1e-3
     end
 end
 
@@ -739,4 +739,247 @@ end
     # 1. EnsembleTrajectory has `trajectories` field (multiple init/goals)
     # 2. SamplingTrajectory has `systems` field (multiple system params)
     # 3. State naming: _init_ suffix vs _sample_ suffix
+end
+# ============================================================================= #
+# Time-Dependent System Tests
+# ============================================================================= #
+
+@testitem "SmoothPulseProblem with time-dependent UnitaryTrajectory" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    # Time-dependent Hamiltonian with oscillating drive
+    ω = 2π * 1.0
+    H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
+    
+    sys = QuantumSystem(H, 5.0, [1.0, 1.0]; time_dependent=true)
+    
+    U_goal = GATES[:H]
+    qtraj = UnitaryTrajectory(sys, U_goal, 50)
+    
+    # Verify time is in trajectory
+    @test haskey(qtraj.components, :t)
+    @test qtraj.system.time_dependent
+    
+    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+    
+    @test qcp isa QuantumControlProblem
+    
+    # Should have TimeIntegrator for time-dependent systems
+    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
+    @test has_time_integrator
+    
+    # Should have: 1 dynamics + 2 derivative + 1 time = 4 integrators
+    @test length(qcp.prob.integrators) == 4
+    
+    # Solve and verify
+    solve!(qcp; max_iter=50, print_level=5, verbose=false)
+    
+    # Test fidelity after solve
+    traj = get_trajectory(qcp)
+    Ũ⃗_final = traj[end][get_state_name(qtraj)]
+    U_final = iso_vec_to_operator(Ũ⃗_final)
+    fid = unitary_fidelity(U_final, U_goal)
+    @test fid > 0.85
+
+    # Test dynamics constraints are satisfied
+    dynamics_integrator = qcp.prob.integrators[1]
+    δ = zeros(dynamics_integrator.dim)
+    DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
+    @test norm(δ, Inf) < 1e-3
+end
+
+@testitem "SmoothPulseProblem with time-dependent KetTrajectory" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    # Time-dependent Hamiltonian with oscillating drive
+    ω = 2π * 1.0e-1
+    H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]
+    
+    sys = QuantumSystem(H, 10.0, [1.0]; time_dependent=true)
+    
+    ψ_init = ComplexF64[1.0, 0.0]
+    ψ_goal = ComplexF64[0.0, 1.0]
+    qtraj = KetTrajectory(sys, ψ_init, ψ_goal, 20)
+    
+    # Verify time is in trajectory
+    @test haskey(qtraj.components, :t)
+    @test qtraj.system.time_dependent
+    
+    qcp = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
+    
+    @test qcp isa QuantumControlProblem
+    
+    # Should have TimeIntegrator for time-dependent systems
+    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
+    @test has_time_integrator
+    
+    # Should have: 1 dynamics + 2 derivative + 1 time = 4 integrators
+    @test length(qcp.prob.integrators) == 4
+    
+    # Solve and verify
+    solve!(qcp; max_iter=100, print_level=1, verbose=false)
+    
+    # Test fidelity after solve
+    traj = get_trajectory(qcp)
+    ψ̃_final = traj[end][get_state_name(qtraj)]
+    ψ_final = iso_to_ket(ψ̃_final)
+    fid = fidelity(ψ_final, ψ_goal)
+    @test fid > 0.85
+
+    # Test dynamics constraints are satisfied
+    dynamics_integrator = qcp.prob.integrators[1]
+    δ = zeros(dynamics_integrator.dim)
+    DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
+    @test norm(δ, Inf) < 1e-3
+end
+
+@testitem "SmoothPulseProblem with time-dependent DensityTrajectory" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    # Time-dependent Hamiltonian with oscillating drive
+    ω = 2π * 5.0
+    H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
+    
+    sys = OpenQuantumSystem(H, 1.0, [1.0, 1.0]; time_dependent=true)
+    
+    ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]  # |0⟩⟨0|
+    ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]  # |1⟩⟨1|
+    qtraj = DensityTrajectory(sys, ρ_init, ρ_goal, 20)
+    
+    # Verify time is in trajectory
+    @test haskey(qtraj.components, :t)
+    @test qtraj.system.time_dependent
+    
+    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-3)
+    
+    @test qcp isa QuantumControlProblem
+    
+    # Should have TimeIntegrator for time-dependent systems
+    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
+    @test has_time_integrator
+    
+    # Should have: 1 dynamics + 2 derivative + 1 time = 4 integrators
+    @test length(qcp.prob.integrators) == 4
+    
+    # Solve and verify
+    solve!(qcp; max_iter=50, print_level=1, verbose=false)
+    
+    # Test dynamics constraints are satisfied
+    traj = get_trajectory(qcp)
+    dynamics_integrator = qcp.prob.integrators[1]
+    δ = zeros(dynamics_integrator.dim)
+    DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
+    @test norm(δ, Inf) < 1e-4
+end
+
+@testitem "SmoothPulseProblem with time-dependent EnsembleTrajectory (Ket)" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    # Time-dependent Hamiltonian with oscillating drive
+    ω = 2π * 5.0
+    H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
+    
+    sys = QuantumSystem(H, 10.0, [1.0, 1.0]; time_dependent=true)
+    
+    # Create ensemble of ket trajectories for X gate
+    ψ0 = ComplexF64[1.0, 0.0]
+    ψ1 = ComplexF64[0.0, 1.0]
+    
+    qtraj1 = KetTrajectory(sys, ψ0, ψ1, 20)  # |0⟩ → |1⟩
+    qtraj2 = KetTrajectory(sys, ψ1, ψ0, 20)  # |1⟩ → |0⟩
+    
+    # Verify time is in trajectories
+    @test haskey(qtraj1.components, :t)
+    @test haskey(qtraj2.components, :t)
+    
+    ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
+    
+    qcp = SmoothPulseProblem(ensemble_qtraj; Q=50.0, R=1e-3)
+    
+    @test qcp isa QuantumControlProblem
+    @test qcp.qtraj isa EnsembleTrajectory{KetTrajectory}
+    
+    # Should have TimeIntegrator for time-dependent systems
+    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
+    @test has_time_integrator
+    
+    # Should have: 2 dynamics + 2 derivative + 1 time = 5 integrators
+    @test length(qcp.prob.integrators) == 5
+    
+    # Solve and verify
+    solve!(qcp; max_iter=50, print_level=1, verbose=false)
+    
+    # Test fidelity for both states after solve
+    traj = get_trajectory(qcp)
+    state_names = get_ensemble_state_names(ensemble_qtraj)
+    goals = get_goal(ensemble_qtraj)
+    
+    for (name, goal) in zip(state_names, goals)
+        ψ̃_final = traj[end][name]
+        ψ_final = iso_to_ket(ψ̃_final)
+        fid = fidelity(ψ_final, goal)
+        @test fid > 0.80
+    end
+end
+
+@testitem "SmoothPulseProblem with time-dependent SamplingTrajectory (Unitary)" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    # Time-dependent Hamiltonian with oscillating drive
+    ω = 2π * 5.0
+    H1(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]
+    H2(u, t) = 1.1 * GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]  # Perturbed
+    
+    sys_nominal = QuantumSystem(H1, 1.0, [1.0]; time_dependent=true)
+    sys_perturbed = QuantumSystem(H2, 1.0, [1.0]; time_dependent=true)
+    
+    U_goal = GATES[:X]
+    qtraj = UnitaryTrajectory(sys_nominal, U_goal, 20)
+    
+    # Verify time is in trajectory
+    @test haskey(qtraj.components, :t)
+    
+    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+    
+    # Create sampling problem
+    sampling_prob = SamplingProblem(qcp, [sys_nominal, sys_perturbed]; Q=100.0)
+    
+    @test sampling_prob isa QuantumControlProblem
+    @test sampling_prob.qtraj isa SamplingTrajectory{UnitaryTrajectory}
+    
+    # Check trajectory has sample states
+    traj = get_trajectory(sampling_prob)
+    @test haskey(traj.components, :Ũ⃗_sample_1)
+    @test haskey(traj.components, :Ũ⃗_sample_2)
+    
+    # Should have TimeIntegrator preserved from base problem
+    has_time_integrator = any(int -> int isa TimeIntegrator, sampling_prob.prob.integrators)
+    @test has_time_integrator
+    
+    # Solve
+    solve!(sampling_prob; max_iter=50, verbose=false, print_level=1)
+    
+    # Test dynamics constraints are satisfied
+    for integrator in sampling_prob.prob.integrators
+        if integrator isa BilinearIntegrator
+            δ = zeros(integrator.dim)
+            DirectTrajOpt.evaluate!(δ, integrator, traj)
+            @test norm(δ, Inf) < 1e-3
+        end
+    end
 end

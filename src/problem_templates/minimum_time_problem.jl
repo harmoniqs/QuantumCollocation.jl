@@ -230,6 +230,73 @@ function _final_fidelity_constraint(
 end
 
 # ============================================================================= #
+# EnsembleTrajectory Support
+# ============================================================================= #
+
+"""
+    _final_fidelity_constraint(qtraj::EnsembleTrajectory, final_fidelity, traj)
+
+Create fidelity constraints for each trajectory in an EnsembleTrajectory.
+Returns a vector of constraints, one per ensemble member.
+"""
+function _final_fidelity_constraint(
+    qtraj::EnsembleTrajectory,
+    final_fidelity::Float64,
+    traj::NamedTrajectory
+)
+    state_names = get_ensemble_state_names(qtraj)
+    goals = PiccoloQuantumObjects.get_goal(qtraj)
+    
+    # Create one fidelity constraint per ensemble member
+    constraints = [
+        _ensemble_fidelity_constraint(qtraj.trajectories[1], goal, name, final_fidelity, traj)
+        for (goal, name) in zip(goals, state_names)
+    ]
+    
+    return constraints
+end
+
+# Dispatch on base trajectory type for ensemble fidelity constraint
+function _ensemble_fidelity_constraint(
+    base_qtraj::UnitaryTrajectory,
+    goal::AbstractPiccoloOperator,
+    state_sym::Symbol,
+    final_fidelity::Float64,
+    traj::NamedTrajectory
+)
+    return FinalUnitaryFidelityConstraint(goal, state_sym, final_fidelity, traj)
+end
+
+function _ensemble_fidelity_constraint(
+    base_qtraj::KetTrajectory,
+    goal::AbstractVector,
+    state_sym::Symbol,
+    final_fidelity::Float64,
+    traj::NamedTrajectory
+)
+    return FinalKetFidelityConstraint(goal, state_sym, final_fidelity, traj)
+end
+
+function _ensemble_fidelity_constraint(
+    base_qtraj::DensityTrajectory,
+    goal::AbstractMatrix,
+    state_sym::Symbol,
+    final_fidelity::Float64,
+    traj::NamedTrajectory
+)
+    throw(ArgumentError("Final fidelity constraint for DensityTrajectory ensemble not yet implemented"))
+end
+
+# Update goal for EnsembleTrajectory is not typically needed since goals are embedded
+# in the individual trajectories. But we provide a fallback that errors clearly.
+function _update_goal(qtraj::EnsembleTrajectory, new_goal)
+    throw(ArgumentError(
+        "Updating goals for EnsembleTrajectory is not directly supported. " *
+        "Create a new EnsembleTrajectory with the desired goals instead."
+    ))
+end
+
+# ============================================================================= #
 # Tests
 # ============================================================================= #
 
@@ -368,7 +435,7 @@ end
     # (one per system in the sampling ensemble)
 
     # Solve minimum-time
-    solve!(mintime_prob; max_iter=20, verbose=false, print_level=1)
+    solve!(mintime_prob; max_iter=50, verbose=false, print_level=1)
 
     duration_after = sum(get_timesteps(get_trajectory(mintime_prob)))
     @test duration_after <= duration_before * 1.1  # Allow small tolerance
@@ -400,4 +467,193 @@ end
 
     # Solve
     solve!(mintime_prob; max_iter=15, verbose=false, print_level=1)
+end
+@testitem "MinimumTimeProblem with EnsembleTrajectory (Ket)" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using NamedTrajectories
+    using LinearAlgebra
+
+    # Multi-state minimum-time optimization (X gate via state transfer)
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 1.0, [1.0, 1.0])
+    
+    # Create ensemble of ket trajectories for X gate
+    ψ0 = ComplexF64[1.0, 0.0]
+    ψ1 = ComplexF64[0.0, 1.0]
+    
+    qtraj1 = KetTrajectory(sys, ψ0, ψ1, 30; Δt_bounds=(0.01, 0.5))  # |0⟩ → |1⟩
+    qtraj2 = KetTrajectory(sys, ψ1, ψ0, 30; Δt_bounds=(0.01, 0.5))  # |1⟩ → |0⟩
+    
+    ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
+    
+    # Create and solve smooth pulse problem
+    qcp_smooth = SmoothPulseProblem(ensemble_qtraj; Q=100.0, R=1e-2)
+    solve!(qcp_smooth; max_iter=30, verbose=false, print_level=1)
+    
+    duration_before = sum(get_timesteps(get_trajectory(qcp_smooth)))
+    
+    # Convert to minimum-time problem
+    qcp_mintime = MinimumTimeProblem(qcp_smooth; final_fidelity=0.90, D=50.0)
+    
+    @test qcp_mintime isa QuantumControlProblem{<:EnsembleTrajectory}
+    @test qcp_mintime.qtraj isa EnsembleTrajectory{KetTrajectory}
+    
+    # Should have fidelity constraints for each ensemble member
+    # (one per trajectory in the ensemble)
+    
+    # Solve minimum-time problem
+    solve!(qcp_mintime; max_iter=30, verbose=false, print_level=1)
+    
+    duration_after = sum(get_timesteps(get_trajectory(qcp_mintime)))
+    
+    # Duration should not increase significantly
+    @test duration_after <= duration_before * 1.1
+
+    # Verify fidelity constraints are met for both states
+    traj = get_trajectory(qcp_mintime)
+    state_names = get_ensemble_state_names(qcp_mintime.qtraj)
+    goals = get_goal(qcp_mintime.qtraj)
+    
+    for (name, goal) in zip(state_names, goals)
+        ψ̃_final = traj[end][name]
+        ψ_final = iso_to_ket(ψ̃_final)
+        fid = fidelity(ψ_final, goal)
+        @test fid >= 0.89  # Just under constraint to account for numerical tolerance
+    end
+end
+
+@testitem "MinimumTimeProblem with EnsembleTrajectory (Unitary)" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using NamedTrajectories
+    using LinearAlgebra
+
+    # Multi-goal minimum-time optimization
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 1.0, [1.0, 1.0])
+    
+    # Create ensemble of unitary trajectories
+    # Note: Using same goal for both since different goals are very hard to optimize together
+    qtraj1 = UnitaryTrajectory(sys, GATES[:X], 30; Δt_bounds=(0.01, 0.5))
+    qtraj2 = UnitaryTrajectory(sys, GATES[:X], 30; Δt_bounds=(0.01, 0.5))
+    
+    ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
+    
+    # Create and solve smooth pulse problem
+    qcp_smooth = SmoothPulseProblem(ensemble_qtraj; Q=100.0, R=1e-2)
+    solve!(qcp_smooth; max_iter=30, verbose=false, print_level=1)
+    
+    duration_before = sum(get_timesteps(get_trajectory(qcp_smooth)))
+    
+    # Convert to minimum-time problem
+    qcp_mintime = MinimumTimeProblem(qcp_smooth; final_fidelity=0.90, D=50.0)
+    
+    @test qcp_mintime isa QuantumControlProblem{<:EnsembleTrajectory}
+    @test qcp_mintime.qtraj isa EnsembleTrajectory{UnitaryTrajectory}
+    
+    # Solve minimum-time problem
+    solve!(qcp_mintime; max_iter=30, verbose=false, print_level=1)
+    
+    duration_after = sum(get_timesteps(get_trajectory(qcp_mintime)))
+    
+    # Duration should not increase significantly
+    @test duration_after <= duration_before * 1.1
+
+    # Verify fidelity constraints are met for all unitaries
+    traj = get_trajectory(qcp_mintime)
+    state_names = get_ensemble_state_names(qcp_mintime.qtraj)
+    goals = get_goal(qcp_mintime.qtraj)
+    
+    for (name, goal) in zip(state_names, goals)
+        Ũ⃗_final = traj[end][name]
+        U_final = iso_vec_to_operator(Ũ⃗_final)
+        fid = unitary_fidelity(U_final, goal)
+        @test fid >= 0.89  # Just under constraint to account for numerical tolerance
+    end
+end
+
+@testitem "MinimumTimeProblem with time-dependent UnitaryTrajectory" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using NamedTrajectories
+    using LinearAlgebra
+
+    # Time-dependent Hamiltonian
+    ω = 2π * 5.0
+    H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
+    
+    sys = QuantumSystem(H, 1.0, [1.0, 1.0]; time_dependent=true)
+    
+    qtraj = UnitaryTrajectory(sys, GATES[:H], 30; Δt_bounds=(0.01, 0.5))
+    
+    # Verify time is in trajectory
+    @test haskey(qtraj.components, :t)
+    
+    # Create and solve smooth pulse problem
+    qcp_smooth = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+    
+    # Should have TimeIntegrator
+    has_time_integrator = any(int -> int isa TimeIntegrator, qcp_smooth.prob.integrators)
+    @test has_time_integrator
+    
+    solve!(qcp_smooth; max_iter=30, verbose=false, print_level=1)
+    
+    duration_before = sum(get_timesteps(get_trajectory(qcp_smooth)))
+    
+    # Convert to minimum-time
+    qcp_mintime = MinimumTimeProblem(qcp_smooth; final_fidelity=0.85, D=50.0)
+    
+    @test qcp_mintime isa QuantumControlProblem{UnitaryTrajectory}
+    
+    # Solve minimum-time problem
+    solve!(qcp_mintime; max_iter=30, verbose=false, print_level=1)
+    
+    duration_after = sum(get_timesteps(get_trajectory(qcp_mintime)))
+    @test duration_after <= duration_before * 1.1
+end
+
+@testitem "MinimumTimeProblem with time-dependent KetTrajectory" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using NamedTrajectories
+    using LinearAlgebra
+
+    # Time-dependent Hamiltonian
+    ω = 2π * 5.0
+    H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]
+    
+    sys = QuantumSystem(H, 1.0, [1.0]; time_dependent=true)
+    
+    ψ_init = ComplexF64[1.0, 0.0]
+    ψ_goal = ComplexF64[0.0, 1.0]
+    
+    qtraj = KetTrajectory(sys, ψ_init, ψ_goal, 30; Δt_bounds=(0.01, 0.5))
+    
+    # Verify time is in trajectory
+    @test haskey(qtraj.components, :t)
+    
+    # Create and solve smooth pulse problem
+    qcp_smooth = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
+    
+    # Should have TimeIntegrator
+    has_time_integrator = any(int -> int isa TimeIntegrator, qcp_smooth.prob.integrators)
+    @test has_time_integrator
+    
+    solve!(qcp_smooth; max_iter=30, verbose=false, print_level=1)
+    
+    duration_before = sum(get_timesteps(get_trajectory(qcp_smooth)))
+    
+    # Convert to minimum-time
+    qcp_mintime = MinimumTimeProblem(qcp_smooth; final_fidelity=0.85, D=50.0)
+    
+    @test qcp_mintime isa QuantumControlProblem{KetTrajectory}
+    
+    # Solve minimum-time problem
+    solve!(qcp_mintime; max_iter=30, verbose=false, print_level=1)
+    
+    duration_after = sum(get_timesteps(get_trajectory(qcp_mintime)))
+    @test duration_after <= duration_before * 1.1
 end

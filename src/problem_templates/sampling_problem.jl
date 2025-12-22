@@ -57,6 +57,17 @@ function sampling_state_objective(
     return KetInfidelityObjective(ψ_goal, state_sym, traj; Q=Q)
 end
 
+function sampling_state_objective(
+    qtraj::DensityTrajectory, 
+    traj::NamedTrajectory, 
+    state_sym::Symbol, 
+    Q::Float64
+)
+    # DensityTrajectory doesn't have a fidelity objective yet
+    # Return NullObjective for now
+    return NullObjective(traj)
+end
+
 # ============================================================================= #
 # SamplingProblem Constructor
 # ============================================================================= #
@@ -314,4 +325,47 @@ end
 
     # Solve minimum-time
     solve!(mintime_prob; max_iter=20, verbose=false, print_level=1)
+end
+@testitem "SamplingProblem with DensityTrajectory" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    # Robust open-system control over parameter uncertainty
+    sys_nominal = OpenQuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 1.0, [1.0, 1.0])
+    sys_perturbed = OpenQuantumSystem(1.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 1.0, [1.0, 1.0])
+
+    ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]  # |0⟩⟨0|
+    ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]  # |1⟩⟨1|
+    
+    qtraj = DensityTrajectory(sys_nominal, ρ_init, ρ_goal, 20)
+
+    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-3)
+
+    # Create sampling problem
+    sampling_prob = SamplingProblem(qcp, [sys_nominal, sys_perturbed]; Q=100.0)
+
+    @test sampling_prob isa QuantumControlProblem
+    @test sampling_prob.qtraj isa SamplingTrajectory{DensityTrajectory}
+
+    # Check trajectory has sample states
+    traj = get_trajectory(sampling_prob)
+    @test haskey(traj.components, :ρ⃗̃_sample_1)
+    @test haskey(traj.components, :ρ⃗̃_sample_2)
+
+    # Check integrators (2 dynamics + 2 derivatives)
+    @test length(sampling_prob.prob.integrators) >= 4
+
+    # Solve and verify dynamics are satisfied
+    solve!(sampling_prob; max_iter=20, verbose=false, print_level=1)
+    
+    # Test dynamics constraints are satisfied for all integrators
+    for integrator in sampling_prob.prob.integrators
+        if integrator isa BilinearIntegrator
+            δ = zeros(integrator.dim)
+            DirectTrajOpt.evaluate!(δ, integrator, traj)
+            @test norm(δ, Inf) < 1e-3
+        end
+    end
 end
