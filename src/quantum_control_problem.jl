@@ -102,6 +102,7 @@ Solve the quantum control problem by forwarding to the inner DirectTrajOptProble
 All keyword arguments are passed to the DirectTrajOpt solver.
 """
 solve!(qcp::QuantumControlProblem; kwargs...) = solve!(qcp.prob; kwargs...)
+# TODO: make sure qtraj is updated after solve!
 
 # Forward other common DirectTrajOptProblem accessors
 Base.getproperty(qcp::QuantumControlProblem, s::Symbol) = begin
