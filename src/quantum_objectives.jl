@@ -99,7 +99,7 @@ function KetsCoherentInfidelityObjective(
     @assert length(ψ_goals) == N
     idxs = _partitions([traj.dims[n] for n in ψ̃_names])
     function ℓ(x)
-        ℱ = abs2(sum(ket_fidelity_loss(x[idx], ComplexF64.(g)) for (idx, g) in zip(idxs, ψ_goals))) / N^2
+        ℱ = abs2(sum(iso_to_ket(x[idx])'g for (idx, g) in zip(idxs, ψ_goals))) / N^2
         return abs(1 - ℱ)
     end
     return KnotPointObjective(ℓ, ψ̃_names, traj, times=[traj.N], Qs=[Q])
