@@ -35,22 +35,18 @@ using CairoMakie
 
 ## define the time parameters
 
-T₀ = 10.0   # total time in ns
 N = 50      # number of time steps
-Δt = T₀ / N # time step
+T₀ = 10.0     # total time in ns
 
 ## define the system parameters
 levels = 5
 δ = 0.2
 
 ## add a bound to the controls
-u_bounds = [0.2, 0.2]
+u_bound = 0.2
 
 ## create the system
-sys = TransmonSystem(levels=levels, δ=δ, T_max=T₀, u_bounds=u_bounds)
-
-## let's look at a drive
-get_drives(sys)[1] |> sparse
+sys = TransmonSystem(levels=levels, δ=δ, T_max=T₀, drive_bounds=fill(u_bound, 2))
 
 
 # Since this is a multilevel transmon and we want to implement an, let's say, $X$ gate on the qubit subspace, i.e., the first two levels we can utilize the `EmbeddedOperator` type to define the target operator.
@@ -75,16 +71,16 @@ get_subspace_identity(op) |> sparse
 # We can then pass this embedded operator to the `UnitarySmoothPulseProblem` template to create the problem
 
 ## create the problem
-prob = UnitarySmoothPulseProblem(sys, op, N, Δt)
+prob = UnitarySmoothPulseProblem(sys, op, N)
 
 ## solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_89ee72.jld2") # hide
-prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_89ee72.jld2") # hide
+# prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(prob; max_iter=50)
 
 #=
 ```julia
-solve!(prob; max_iter=50)
 ```
 
 ```@raw html
@@ -179,7 +175,7 @@ plot_unitary_populations(prob.trajectory; fig_size=(900, 700))
 
 ## create the a leakage suppression problem, initializing with the previous solution
 
-prob_leakage = UnitarySmoothPulseProblem(sys, op, N, Δt;
+prob_leakage = UnitarySmoothPulseProblem(sys, op, N;
     u_guess=prob.trajectory.u[:, :],
     piccolo_options=PiccoloOptions(
         leakage_constraint=true,
@@ -189,13 +185,12 @@ prob_leakage = UnitarySmoothPulseProblem(sys, op, N, Δt;
 )
 
 ## solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_leakage_89ee72.jld2") # hide
-prob_leakage.trajectory = load_traj(load_path) # hide
-nothing # hide
-
+# load_path = joinpath(dirname(Base.active_project()), "data/multilevel_transmon_example_leakage_89ee72.jld2") # hide
+# prob_leakage.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(prob_leakage; max_iter=250, options=IpoptOptions(eval_hessian=false))
 #=
 ```julia
-solve!(prob_leakage; max_iter=250)
 ```
 
 ```@raw html

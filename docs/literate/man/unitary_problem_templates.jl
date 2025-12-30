@@ -19,26 +19,24 @@ instead of driving the system to a target state, the goal is to drive the system
 target unitary operator, `U_goal`.
 
 =#
-T_max = 1.0
-u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], T_max, u_bounds)
-U_goal = GATES.H
-N = 51
-Δt = 0.2
 
-prob = UnitarySmoothPulseProblem(system, U_goal, N, Δt);
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+U_goal = EmbeddedOperator(GATES.H, system)
+N = 51
+
+prob = UnitarySmoothPulseProblem(system, U_goal, N); 
 
 # _check the fidelity before solving_
 println("Before: ", unitary_rollout_fidelity(prob.trajectory, system))
 
 # _finding an optimal control is as simple as calling `solve!`_
-load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_89ee72.jld2") # hide
-prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_89ee72.jld2") # hide
+# prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(prob, max_iter=100);
 
 #=
 ```julia
-solve!(prob, max_iter=100, verbose=true, print_level=1);
 ```
 
 ```@raw html
@@ -91,13 +89,13 @@ min_prob = UnitaryMinimumTimeProblem(prob, U_goal);
 println("Duration before: ", get_duration(prob.trajectory))
 
 # _solve the minimum time problem_
-load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_min_time_89ee72.jld2") # hide
-min_prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/unitary_problem_templates_min_time_89ee72.jld2") # hide
+# min_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(min_prob, max_iter=100);
 
 #=
 ```julia
-solve!(min_prob, max_iter=100, verbose=true, print_level=1);
 ```
 
 ```@raw html
@@ -134,10 +132,8 @@ This can be useful for exploring robustness, for example.
 =#
 
 # _create a sampling problem_
-T_max = 1.0
-u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
-driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], T_max, u_bounds)
-sampling_prob = UnitarySamplingProblem([system, driftless_system], U_goal, N, Δt);
+driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+sampling_prob = UnitarySamplingProblem([system, driftless_system], U_goal, N);
 
 # _new keys are addded to the trajectory for the new states_
 println(sampling_prob.trajectory.state_names)
@@ -163,9 +159,9 @@ for more details.
 T_max = 1.0
 u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 H_var = PAULIS.X
-varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], T_max, u_bounds);
+varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], 10.0, [1.0, 1.0]);
 
 # _create a variational problem that is robust to `PAULIS.X` at the end_
-robprob = UnitaryVariationalProblem(varsys, U_goal, N, Δt, robust_times=[[N]]);
+robprob = UnitaryVariationalProblem(varsys, U_goal, N, robust_times=[[N]]);
 
 # -----
