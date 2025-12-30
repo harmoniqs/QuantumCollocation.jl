@@ -1,6 +1,7 @@
 module QuantumObjectives
 
 export KetInfidelityObjective
+export KetsCoherentInfidelityObjective
 export UnitaryInfidelityObjective
 export DensityMatrixPureStateInfidelityObjective
 export UnitarySensitivityObjective
@@ -64,6 +65,44 @@ function KetInfidelityObjective(
 )
     ℓ = ψ̃ -> abs(1 - ket_fidelity_loss(ψ̃, ComplexF64.(ψ_goal)))
     return TerminalObjective(ℓ, ψ̃_name, traj; Q=Q)
+end
+
+function _partitions(dims::AbstractVector{Int})
+    ends = cumsum(dims)
+    return UnitRange.(ends .- dims .+ 1, ends)
+end
+
+"""
+    KetsCoherentInfidelityObjective(ψ_goals, ψ̃_names, traj; Q=100.0)
+
+Phase-sensitive ensemble fidelity objective for a goal unitary via state preparations.
+
+For an ensemble of N prepared states with final states |ϕᵢ⟩ and goals |gᵢ⟩, computes the 
+coherent overlap ℱ = |∑ᵢ ⟨ϕᵢ | gᵢ⟩|² / N². If the prepared states form a complete  basis,
+ℱ reduces to |Tr(U† U_target)|² / N².
+
+# Arguments
+- `ψ_goals::AbstractVector{<:AbstractVector{<:Complex}}`: The target ket states (complex vector)
+- `ψ̃_names::Symbol`: Names of the isomorphic state variables in the trajectory
+- `traj::NamedTrajectory`: The trajectory
+
+# Keyword Arguments
+- `Q::Float64=100.0`: Weight on the infidelity objective
+"""
+function KetsCoherentInfidelityObjective(
+    ψ_goals::AbstractVector{<:AbstractVector{<:Complex}},
+    ψ̃_names::AbstractVector{Symbol}, 
+    traj::NamedTrajectory;
+    Q=100.0
+)
+    N = length(ψ̃_names)
+    @assert length(ψ_goals) == N
+    idxs = _partitions([traj.dims[n] for n in ψ̃_names])
+    function ℓ(x)
+        ℱ = abs2(sum(ket_fidelity_loss(x[idx], ComplexF64.(g)) for (idx, g) in zip(idxs, ψ_goals))) / N^2
+        return abs(1 - ℱ)
+    end
+    return KnotPointObjective(ℓ, ψ̃_names, traj, times=[traj.N], Qs=[Q])
 end
 
 

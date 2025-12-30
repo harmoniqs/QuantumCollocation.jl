@@ -348,19 +348,11 @@ end
 # Ensemble trajectory objectives
 # ----------------------------------------------------------------------------- #
 
-function _partitions(dims::AbstractVector{Int})
-    ends = cumsum(dims)
-    return UnitRange.(ends .- dims .+ 1, ends)
-end
 
 """
     _ensemble_state_objective(qtraj::EnsembleTrajectory{KetTrajectory}, traj, state_names, weights, goals, Q)
 
 Phase-sensitive ensemble fidelity objective for a goal unitary via state preparations.
-
-For an ensemble of N prepared states with final states |ϕᵢ⟩ and goals |gᵢ⟩, computes the 
-coherent overlap ℱ = |∑ᵢ wᵢ ⟨ϕᵢ | gᵢ⟩|² / N². If the prepared states form a complete  basis,
-ℱ reduces to |Tr(U† U_target)|² / N².
 """
 function _ensemble_state_objective(
     qtraj::EnsembleTrajectory{KetTrajectory},
@@ -370,14 +362,8 @@ function _ensemble_state_objective(
     goals::Vector,
     Q::Float64
 )
-    N = length(state_names)
-    idxs = _partitions([traj.dims[n] for n in state_names])
-    function ℓ(x)
-        ℱ = abs2(sum(w * iso_to_ket(x[idx])'goal for (idx, w, goal) in zip(idxs, weights, goals))) / N^2
-        return abs(1 - ℱ)
-    end
-    J = KnotPointObjective(ℓ, state_names, traj, times=[traj.N], Qs=[Q])
-    return J
+    # TODO: Is there a use case for weights?
+    return KetsCoherentInfidelityObjective(goals, state_names, traj, Q=Q)
 end
 
 """
