@@ -3,7 +3,7 @@ using PiccoloQuantumObjects
 
 println("Testing basic system creation...")
 try
-    sys = TransmonSystem(10.0, [0.2, 0.2]; ω=4.0, δ=0.2, levels=3)
+    sys = TransmonSystem([0.2, 0.2]; ω=4.0, δ=0.2, levels=3)
     println("✓ TransmonSystem created successfully")
     println("  n_drives: ", sys.n_drives)
     println("  levels: ", sys.levels)
@@ -16,7 +16,7 @@ println("\nTesting QuantumStateSmoothPulseProblem...")
 try
     N = 51
     Δt = 0.2
-    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    sys = QuantumSystem(0.1 * GATES[:Z], [GATES[:X], GATES[:Y]], [1.0, 1.0])
     ψ_init = Vector{ComplexF64}([1.0, 0.0])
     ψ_target = Vector{ComplexF64}([0.0, 1.0])
     
@@ -38,7 +38,7 @@ end
 println("\nTesting UnitarySmoothPulseProblem...")
 try
     N = 51
-    sys = TransmonSystem(10.0, [0.2, 0.2]; ω=4.0, δ=0.2, levels=2)
+    sys = TransmonSystem([0.2, 0.2]; ω=4.0, δ=0.2, levels=2)
     U_goal = GATES[:X]
     
     prob = UnitarySmoothPulseProblem(

@@ -5,7 +5,6 @@ using PiccoloQuantumObjects
 sys = QuantumSystem(
     GATES[:Z],              # H_drift
     [GATES[:X], GATES[:Y]], # H_drives
-    1.0,                    # T_max
     [1.0, 1.0]             # drive_bounds
 )
 
@@ -43,7 +42,6 @@ println()
 open_sys = OpenQuantumSystem(
     GATES[:Z],              # H_drift
     [GATES[:X], GATES[:Y]], # H_drives
-    1.0,                    # T_max
     [1.0, 1.0]             # drive_bounds
 )
 

@@ -41,7 +41,7 @@ using QuantumCollocation
 using PiccoloQuantumObjects
 
 # Step 1: Create quantum system
-sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], [1.0, 1.0])
 
 # Step 2: Create quantum trajectory (returns wrapped type)
 qtraj = unitary_trajectory(sys, GATES[:H], 51; store_times=true)

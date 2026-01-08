@@ -3,15 +3,16 @@ module ProblemTemplates
 using ..QuantumObjectives
 using ..QuantumConstraints
 using ..QuantumIntegrators
-using ..QuantumControlProblems: QuantumControlProblem
+using ..QuantumControlProblems: QuantumControlProblem, get_trajectory, get_system
 using ..Options
 
 using TrajectoryIndexingUtils
 using NamedTrajectories
 using DirectTrajOpt
 using PiccoloQuantumObjects
-using PiccoloQuantumObjects: build_sampling_trajectory, build_ensemble_trajectory_from_trajectories, 
-    get_ensemble_state_names, get_weights, update_base_trajectory, SamplingTrajectory, EnsembleTrajectory
+using PiccoloQuantumObjects: SamplingTrajectory, EnsembleKetTrajectory, 
+    state_names, get_weights, AbstractSplinePulse, AbstractPulse, ZeroOrderPulse,
+    LinearSplinePulse, CubicSplinePulse
 
 using ExponentialAction
 using LinearAlgebra
@@ -21,6 +22,7 @@ using TestItems
 const ⊗ = kron
 
 include("smooth_pulse_problem.jl")
+include("spline_pulse_problem.jl")
 include("minimum_time_problem.jl")
 include("sampling_problem.jl")
 

@@ -76,7 +76,7 @@ T_max = 400.0 # μs (maximum duration)
 drive_bounds = fill((-u_bound, u_bound), length(H_drives))
 
 ## Define the system
-sys = QuantumSystem(H_drift, H_drives, T_max, drive_bounds)
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
 
 # ## SWAP gate
 

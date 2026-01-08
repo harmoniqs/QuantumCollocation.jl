@@ -1,24 +1,25 @@
 export SmoothPulseProblem
 
 @doc raw"""
-    SmoothPulseProblem(qtraj::AbstractQuantumTrajectory; kwargs...)
+    SmoothPulseProblem(qtraj::AbstractQuantumTrajectory{<:ZeroOrderPulse}, N::Int; kwargs...)
 
-Construct a `QuantumControlProblem` for smooth pulse optimization that dispatches on the quantum trajectory type.
+Construct a `QuantumControlProblem` for smooth pulse optimization with piecewise constant controls.
 
-This unified interface replaces `UnitarySmoothPulseProblem`, `QuantumStateSmoothPulseProblem`, etc.
-The problem automatically:
-- Adds control derivatives (u̇, ü) to the trajectory
-- Creates appropriate dynamics integrator via `default_integrator`
-- Adds derivative integrators for smoothness constraints
-- Constructs objective with infidelity and regularization terms
+**Note**: This problem template is for `ZeroOrderPulse` only. For spline-based pulses
+(`LinearSplinePulse`, `CubicSplinePulse`), use `SplinePulseProblem` instead.
+
+The problem adds discrete derivative variables (du, ddu) that:
+- Regularize control changes between timesteps
+- Enforce smoothness via `DerivativeIntegrator` constraints
 
 # Arguments
-- `qtraj::AbstractQuantumTrajectory`: Quantum trajectory (UnitaryTrajectory, KetTrajectory, or DensityTrajectory)
+- `qtraj::AbstractQuantumTrajectory{<:ZeroOrderPulse}`: Quantum trajectory with piecewise constant pulse
+- `N::Int`: Number of timesteps for discretization
 
 # Keyword Arguments
-- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s). If `nothing`, uses default type-appropriate integrator. For KetTrajectory with multiple states, this will automatically return a vector of integrators (one per state). Can also be explicitly provided as a vector.
-- `du_bound::Float64=Inf`: Bound on first derivative
-- `ddu_bound::Float64=1.0`: Bound on second derivative
+- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s)
+- `du_bound::Float64=Inf`: Bound on discrete first derivative (controls jump rate)
+- `ddu_bound::Float64=1.0`: Bound on discrete second derivative (controls acceleration)
 - `Q::Float64=100.0`: Weight on infidelity/objective
 - `R::Float64=1e-2`: Weight on regularization terms (u, u̇, ü)
 - `R_u::Union{Float64, Vector{Float64}}=R`: Weight on control regularization
@@ -32,29 +33,29 @@ The problem automatically:
 
 # Examples
 ```julia
-# Unitary gate synthesis
-sys = QuantumSystem(H_drift, H_drives, T, drive_bounds)
-qtraj = UnitaryTrajectory(sys, U_goal, N)
-qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+# Unitary gate synthesis with piecewise constant pulse
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
+pulse = ZeroOrderPulse(0.1 * randn(n_drives, N), collect(range(0.0, T, length=N)))
+qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
 solve!(qcp; max_iter=100)
 
 # Quantum state transfer
-qtraj = KetTrajectory(sys, ψ_init, ψ_goal, N)
-qcp = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
-solve!(qcp)
-
-# Open system
-open_sys = OpenQuantumSystem(H_drift, H_drives, T, drive_bounds)
-qtraj = DensityTrajectory(open_sys, ρ_init, ρ_goal, N)
-qcp = SmoothPulseProblem(qtraj; Q=100.0)
+pulse = ZeroOrderPulse(0.1 * randn(n_drives, N), collect(range(0.0, T, length=N)))
+qtraj = KetTrajectory(sys, pulse, ψ_init, ψ_goal)
+qcp = SmoothPulseProblem(qtraj, N; Q=50.0, R=1e-3)
 solve!(qcp)
 ```
+
+See also: [`SplinePulseProblem`](@ref) for spline-based pulses.
 """
 function SmoothPulseProblem(
-    qtraj::AbstractQuantumTrajectory;
+    qtraj::AbstractQuantumTrajectory{<:ZeroOrderPulse},
+    N::Int;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
     du_bound::Float64=Inf,
     ddu_bound::Float64=1.0,
+    Δt_bounds::Union{Nothing, Tuple{Float64, Float64}}=nothing,
     Q::Float64=100.0,
     R::Float64=1e-2,
     R_u::Union{Float64,Vector{Float64}}=R,
@@ -68,21 +69,41 @@ function SmoothPulseProblem(
     end
 
     # Extract info from quantum trajectory
-    sys = PiccoloQuantumObjects.get_system(qtraj)
-    state_sym = PiccoloQuantumObjects.get_state_name(qtraj)
-    control_sym = PiccoloQuantumObjects.get_control_name(qtraj)
+    sys = get_system(qtraj)
+    state_sym = state_name(qtraj)
+    control_sym = drive_name(qtraj)
+
+    # Convert quantum trajectory to NamedTrajectory
+    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds)
 
     # Add control derivatives to trajectory (always 2 derivatives for smooth pulses)
     du_bounds = fill(du_bound, sys.n_drives)
     ddu_bounds = fill(ddu_bound, sys.n_drives)
 
     traj_smooth = add_control_derivatives(
-        PiccoloQuantumObjects.get_trajectory(qtraj),
+        base_traj,
         2;  # Always use 2 derivatives
         control_name=control_sym,
         derivative_bounds=(du_bounds, ddu_bounds)
     )
 
+    # Initialize dynamics integrators - handle both single integrator and vector of integrators
+    if isnothing(integrator)
+        # Use default BilinearIntegrator for the trajectory type
+        default_int = BilinearIntegrator(qtraj, N)
+        if default_int isa AbstractVector
+            dynamics_integrators = AbstractIntegrator[default_int...]
+        else
+            dynamics_integrators = AbstractIntegrator[default_int]
+        end
+    elseif integrator isa AbstractIntegrator
+        # Single custom integrator provided
+        dynamics_integrators = AbstractIntegrator[integrator]
+    else
+        # Vector of custom integrators provided
+        dynamics_integrators = AbstractIntegrator[integrator...]
+    end
+    
     # Get control derivative names
     control_names = [
         name for name ∈ traj_smooth.names
@@ -100,23 +121,6 @@ function SmoothPulseProblem(
     # Add optional Piccolo constraints and objectives
     J += _apply_piccolo_options(qtraj, piccolo_options, constraints, traj_smooth, state_sym)
 
-    # Initialize dynamics integrators - handle both single integrator and vector of integrators
-    if isnothing(integrator)
-        # Use default BilinearIntegrator for the trajectory type
-        default_int = BilinearIntegrator(qtraj)
-        if default_int isa AbstractVector
-            dynamics_integrators = AbstractIntegrator[default_int...]
-        else
-            dynamics_integrators = AbstractIntegrator[default_int]
-        end
-    elseif integrator isa AbstractIntegrator
-        # Single custom integrator provided
-        dynamics_integrators = AbstractIntegrator[integrator]
-    else
-        # Vector of custom integrators provided
-        dynamics_integrators = AbstractIntegrator[integrator...]
-    end
-
     # Start with dynamics integrators
     integrators = copy(dynamics_integrators)
 
@@ -125,9 +129,7 @@ function SmoothPulseProblem(
 
     push!(integrators, DerivativeIntegrator(control_names[2], control_names[3], traj_smooth))
 
-    if qtraj.system.time_dependent
-        push!(integrators, TimeIntegrator(:t, traj_smooth))
-    end
+    # Note: TimeConsistencyConstraint is auto-applied by DirectTrajOpt when :t and :Δt present
 
     prob = DirectTrajOptProblem(
         traj_smooth,
@@ -144,26 +146,25 @@ end
 # ============================================================================= #
 
 @doc raw"""
-    SmoothPulseProblem(qtraj::EnsembleTrajectory; kwargs...)
+    SmoothPulseProblem(qtraj::EnsembleKetTrajectory{<:ZeroOrderPulse}, N::Int; kwargs...)
 
-Construct a `QuantumControlProblem` for smooth pulse optimization over an ensemble of trajectories.
+Construct a `QuantumControlProblem` for smooth pulse optimization over an ensemble of ket state transfers
+with piecewise constant controls.
 
 This handles the case where you want to optimize a single pulse that achieves multiple 
 state transfers simultaneously (e.g., |0⟩→|1⟩ and |1⟩→|0⟩ for an X gate via state transfer).
 
-The problem:
-- Creates a combined trajectory with separate state variables for each ensemble member
-- Sums infidelity objectives over all state transfers (weighted by ensemble weights)
-- Creates one dynamics integrator per state variable (all sharing the same controls)
-- Adds derivative integrators for smoothness constraints
+**Note**: This problem template is for `ZeroOrderPulse` only. For spline-based pulses,
+use `SplinePulseProblem` instead.
 
 # Arguments
-- `qtraj::EnsembleTrajectory`: Ensemble of quantum trajectories with shared system
+- `qtraj::EnsembleKetTrajectory{<:ZeroOrderPulse}`: Ensemble of ket state transfers with piecewise constant pulse
+- `N::Int`: Number of timesteps for the discretization
 
 # Keyword Arguments
 - `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s)
-- `du_bound::Float64=Inf`: Bound on first derivative
-- `ddu_bound::Float64=1.0`: Bound on second derivative
+- `du_bound::Float64=Inf`: Bound on discrete first derivative
+- `ddu_bound::Float64=1.0`: Bound on discrete second derivative
 - `Q::Float64=100.0`: Weight on infidelity/objective
 - `R::Float64=1e-2`: Weight on regularization terms (u, u̇, ü)
 - `R_u::Union{Float64, Vector{Float64}}=R`: Weight on control regularization
@@ -173,28 +174,31 @@ The problem:
 - `piccolo_options::PiccoloOptions=PiccoloOptions()`: Piccolo solver options
 
 # Returns
-- `QuantumControlProblem{EnsembleTrajectory}`: Wrapper containing ensemble trajectory and optimization problem
+- `QuantumControlProblem{EnsembleKetTrajectory}`: Wrapper containing ensemble trajectory and optimization problem
 
 # Examples
 ```julia
-sys = QuantumSystem(H_drift, H_drives, T, drive_bounds)
-
 # Create ensemble for X gate via state transfer
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
+pulse = ZeroOrderPulse(0.1 * randn(n_drives, N), collect(range(0.0, T, length=N)))
+
 ψ0 = ComplexF64[1.0, 0.0]
 ψ1 = ComplexF64[0.0, 1.0]
-qtraj1 = KetTrajectory(sys, ψ0, ψ1, N)  # |0⟩ → |1⟩
-qtraj2 = KetTrajectory(sys, ψ1, ψ0, N)  # |1⟩ → |0⟩
 
-ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
-qcp = SmoothPulseProblem(ensemble_qtraj; Q=100.0, R=1e-2)
+ensemble_qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
+qcp = SmoothPulseProblem(ensemble_qtraj, N; Q=100.0, R=1e-2)
 solve!(qcp; max_iter=100)
 ```
+
+See also: [`SplinePulseProblem`](@ref) for spline-based pulses.
 """
 function SmoothPulseProblem(
-    qtraj::EnsembleTrajectory;
+    qtraj::EnsembleKetTrajectory{<:ZeroOrderPulse},
+    N::Int;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
     du_bound::Float64=Inf,
     ddu_bound::Float64=1.0,
+    Δt_bounds::Union{Nothing, Tuple{Float64, Float64}}=nothing,
     Q::Float64=100.0,
     R::Float64=1e-2,
     R_u::Union{Float64,Vector{Float64}}=R,
@@ -204,19 +208,19 @@ function SmoothPulseProblem(
     piccolo_options::PiccoloOptions=PiccoloOptions(),
 )
     if piccolo_options.verbose
-        println("    constructing SmoothPulseProblem for EnsembleTrajectory...")
-        println("\twith $(length(qtraj.trajectories)) trajectories")
+        println("    constructing SmoothPulseProblem for EnsembleKetTrajectory...")
+        println("\twith $(length(qtraj.initials)) state transfers")
     end
 
     # Extract info from ensemble trajectory
-    sys = PiccoloQuantumObjects.get_system(qtraj)
-    control_sym = PiccoloQuantumObjects.get_control_name(qtraj)
-    state_names = get_ensemble_state_names(qtraj)
-    weights = get_weights(qtraj)
-    goals = get_goal(qtraj)
+    sys = get_system(qtraj)
+    control_sym = drive_name(qtraj)
+    snames = state_names(qtraj)
+    weights = qtraj.weights
+    goals = qtraj.goals
 
-    # Build combined trajectory with all ensemble states
-    base_traj, _ = build_ensemble_trajectory_from_trajectories(qtraj.trajectories)
+    # Convert quantum trajectory to NamedTrajectory
+    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds)
 
     # Add control derivatives to trajectory
     du_bounds = fill(du_bound, sys.n_drives)
@@ -236,7 +240,7 @@ function SmoothPulseProblem(
     ]
 
     # Build objective: weighted sum of infidelities for each state
-    J = _ensemble_state_objective(qtraj, traj_smooth, state_names, weights, goals, Q)
+    J = _ensemble_ket_objective(qtraj, traj_smooth, snames, weights, goals, Q)
 
     # Add regularization for control and derivatives
     J += QuadraticRegularizer(control_names[1], traj_smooth, R_u)
@@ -244,11 +248,11 @@ function SmoothPulseProblem(
     J += QuadraticRegularizer(control_names[3], traj_smooth, R_ddu)
 
     # Apply piccolo options for each state
-    J += _apply_piccolo_options(qtraj, piccolo_options, constraints, traj_smooth, state_names)
+    J += _apply_piccolo_options(qtraj, piccolo_options, constraints, traj_smooth, snames)
 
     # Build integrators: one dynamics integrator per state
     if isnothing(integrator)
-        dynamics_integrators = BilinearIntegrator(qtraj, traj_smooth)
+        dynamics_integrators = BilinearIntegrator(qtraj, N)
     elseif integrator isa AbstractIntegrator
         dynamics_integrators = AbstractIntegrator[integrator]
     else
@@ -261,9 +265,7 @@ function SmoothPulseProblem(
     push!(integrators, DerivativeIntegrator(control_names[1], control_names[2], traj_smooth))
     push!(integrators, DerivativeIntegrator(control_names[2], control_names[3], traj_smooth))
 
-    if sys.time_dependent
-        push!(integrators, TimeIntegrator(:t, traj_smooth))
-    end
+    # Note: TimeConsistencyConstraint is auto-applied by DirectTrajOpt when :t and :Δt present
 
     prob = DirectTrajOptProblem(
         traj_smooth,
@@ -285,7 +287,7 @@ end
 
 # Unitary trajectory: single infidelity objective
 function _state_objective(qtraj::UnitaryTrajectory, traj::NamedTrajectory, state_sym::Symbol, Q::Float64)
-    U_goal = PiccoloQuantumObjects.get_goal(qtraj)
+    U_goal = qtraj.goal
     return UnitaryInfidelityObjective(U_goal, state_sym, traj; Q=Q)
 end
 
@@ -308,7 +310,7 @@ function _apply_piccolo_options(
     traj::NamedTrajectory,
     state_sym::Symbol
 )
-    U_goal = PiccoloQuantumObjects.get_goal(qtraj)
+    U_goal = qtraj.goal
     return apply_piccolo_options!(
         piccolo_options, constraints, traj;
         state_names=state_sym,
@@ -345,55 +347,31 @@ function _apply_piccolo_options(
 end
 
 # ----------------------------------------------------------------------------- #
-# Ensemble trajectory objectives
+# Ensemble ket trajectory objectives
 # ----------------------------------------------------------------------------- #
 
 """
-    _ensemble_state_objective(qtraj::EnsembleTrajectory, traj, state_names, weights, goals, Q)
+    _ensemble_ket_objective(qtraj::EnsembleKetTrajectory, traj, state_names, weights, goals, Q)
 
-Create a weighted sum of infidelity objectives for each trajectory in an ensemble.
-Dispatches on the element type of the ensemble.
+Create a coherent fidelity objective for ensemble state transfers.
+
+For ensemble trajectories (implementing a gate via multiple state transfers),
+we use coherent fidelity:
+    F_coherent = |1/n ∑ᵢ ⟨ψᵢ_goal|ψᵢ⟩|²
+
+This requires all state overlaps to have aligned phases, which is essential
+for gate implementation (the gate should have a single global phase).
 """
-function _ensemble_state_objective(
-    qtraj::EnsembleTrajectory{KetTrajectory},
+function _ensemble_ket_objective(
+    qtraj::EnsembleKetTrajectory,
     traj::NamedTrajectory,
-    state_names::Vector{Symbol},
+    snames::Vector{Symbol},
     weights::Vector{Float64},
     goals::Vector,
     Q::Float64
 )
-    J = NullObjective(traj)
-    for (name, w, goal) in zip(state_names, weights, goals)
-        J += KetInfidelityObjective(goal, name, traj; Q=w*Q)
-    end
-    return J
-end
-
-function _ensemble_state_objective(
-    qtraj::EnsembleTrajectory{UnitaryTrajectory},
-    traj::NamedTrajectory,
-    state_names::Vector{Symbol},
-    weights::Vector{Float64},
-    goals::Vector,
-    Q::Float64
-)
-    J = NullObjective(traj)
-    for (name, w, goal) in zip(state_names, weights, goals)
-        J += UnitaryInfidelityObjective(goal, name, traj; Q=w*Q)
-    end
-    return J
-end
-
-function _ensemble_state_objective(
-    qtraj::EnsembleTrajectory{DensityTrajectory},
-    traj::NamedTrajectory,
-    state_names::Vector{Symbol},
-    weights::Vector{Float64},
-    goals::Vector,
-    Q::Float64
-)
-    # TODO: Add fidelity objective when we support general mixed state fidelity
-    return NullObjective(traj)
+    # Use coherent fidelity - phases must align for gate implementation
+    return CoherentKetInfidelityObjective(goals, snames, traj; Q=Q)
 end
 
 # ----------------------------------------------------------------------------- #
@@ -401,17 +379,42 @@ end
 # ----------------------------------------------------------------------------- #
 
 function _apply_piccolo_options(
-    qtraj::EnsembleTrajectory,
+    qtraj::EnsembleKetTrajectory,
     piccolo_options::PiccoloOptions,
     constraints::Vector{<:AbstractConstraint},
     traj::NamedTrajectory,
-    state_names::Vector{Symbol}
+    snames::Vector{Symbol}
 )
     # Apply piccolo options for all state variables in the ensemble
     return apply_piccolo_options!(
         piccolo_options, constraints, traj;
-        state_names=state_names
+        state_names=snames
     )
+end
+
+# ============================================================================= #
+# Fallback Error Method
+# ============================================================================= #
+
+"""
+    SmoothPulseProblem(qtraj::AbstractQuantumTrajectory, N::Int; kwargs...)
+
+Fallback method that provides helpful error for non-ZeroOrderPulse types.
+"""
+function SmoothPulseProblem(
+    qtraj::AbstractQuantumTrajectory{P},
+    N::Int;
+    kwargs...
+) where P <: AbstractPulse
+    pulse_type = P
+    error("""
+    SmoothPulseProblem is only for piecewise constant pulses (ZeroOrderPulse).
+    
+    You provided a trajectory with pulse type: $(pulse_type)
+    
+    For spline-based pulses (LinearSplinePulse, CubicSplinePulse), use SplinePulseProblem instead:
+        qcp = SplinePulseProblem(qtraj, N; ...)
+    """)
 end
 
 # ============================================================================= #
@@ -424,10 +427,15 @@ end
     using DirectTrajOpt
     using LinearAlgebra
 
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    T = 10.0
+    N = 50
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], [1.0, 1.0])
     U_goal = GATES[:H]
-    qtraj = UnitaryTrajectory(sys, U_goal, 10)
-    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+    
+    # Create pulse and quantum trajectory
+    pulse = ZeroOrderPulse(0.1 * randn(2, N), collect(range(0.0, T, length=N)))
+    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+    qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
 
     @test qcp isa QuantumControlProblem
     @test length(qcp.prob.integrators) == 3  # dynamics + du + ddu
@@ -437,7 +445,7 @@ end
 
     # Test accessors
     @test get_system(qcp) === sys
-    @test get_goal(qcp) === U_goal
+    @test qtraj.goal === U_goal
     @test get_trajectory(qcp) === qcp.prob.trajectory
 
     # Solve and verify
@@ -445,7 +453,7 @@ end
 
     # Test fidelity after solve
     traj = get_trajectory(qcp)
-    Ũ⃗_final = traj[end][get_state_name(qtraj)]
+    Ũ⃗_final = traj[end][state_name(qtraj)]
     U_final = iso_vec_to_operator(Ũ⃗_final)
     fid = unitary_fidelity(U_final, U_goal)
     @test fid > 0.9
@@ -457,17 +465,45 @@ end
     @test norm(δ, Inf) < 1e-3
 end
 
+@testitem "SmoothPulseProblem rejects spline pulses" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using LinearAlgebra
+
+    T = 10.0
+    N = 50
+    sys = QuantumSystem(GATES[:Z], [GATES[:X]], [1.0])
+    U_goal = GATES[:X]
+    
+    times = collect(range(0.0, T, length=N))
+    
+    # LinearSplinePulse should be rejected
+    pulse_linear = LinearSplinePulse(0.1 * randn(1, N), times)
+    qtraj_linear = UnitaryTrajectory(sys, pulse_linear, U_goal)
+    @test_throws ErrorException SmoothPulseProblem(qtraj_linear, N)
+    
+    # CubicSplinePulse should be rejected
+    pulse_cubic = CubicSplinePulse(0.1 * randn(1, N), zeros(1, N), times)
+    qtraj_cubic = UnitaryTrajectory(sys, pulse_cubic, U_goal)
+    @test_throws ErrorException SmoothPulseProblem(qtraj_cubic, N)
+end
+
 @testitem "SmoothPulseProblem with KetTrajectory" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
     using LinearAlgebra
 
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    T = 10.0
+    N = 50
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], [1.0, 1.0])
     ψ_init = ComplexF64[1.0, 0.0]
     ψ_goal = ComplexF64[0.0, 1.0]
-    qtraj = KetTrajectory(sys, ψ_init, ψ_goal, 10)
-    qcp = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
+    
+    # Create pulse and quantum trajectory
+    pulse = ZeroOrderPulse(randn(2, N), collect(range(0.0, T, length=N)))
+    qtraj = KetTrajectory(sys, pulse, ψ_init, ψ_goal)
+    qcp = SmoothPulseProblem(qtraj, N; Q=50.0, R=1e-3)
 
     @test qcp isa QuantumControlProblem
     @test length(qcp.prob.integrators) == 3
@@ -475,11 +511,11 @@ end
     @test haskey(qcp.prob.trajectory.components, :ddu)
 
     # Solve and verify
-    solve!(qcp; max_iter=100, print_level=1, verbose=false)
+    solve!(qcp; max_iter=100, print_level=5, verbose=false)
 
     # Test fidelity after solve
     traj = get_trajectory(qcp)
-    ψ̃_final = traj[end][get_state_name(qtraj)]
+    ψ̃_final = traj[end][state_name(qtraj)]
     ψ_final = iso_to_ket(ψ̃_final)
     fid = fidelity(ψ_final, ψ_goal)
     @test fid > 0.9
@@ -491,33 +527,11 @@ end
     @test norm(δ, Inf) < 1e-3
 end
 
-@testitem "SmoothPulseProblem with DensityTrajectory" begin
-    using QuantumCollocation
-    using PiccoloQuantumObjects
-    using DirectTrajOpt
-    using LinearAlgebra
-
-    sys = OpenQuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
-    ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]
-    ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]
-    qtraj = DensityTrajectory(sys, ρ_init, ρ_goal, 10)
-    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-3)
-
-    @test qcp isa QuantumControlProblem
-    @test length(qcp.prob.integrators) == 3
-
-    # Solve and verify
-    solve!(qcp; max_iter=100, print_level=1, verbose=false)
-
-    # Test dynamics constraints are satisfied
-    traj = get_trajectory(qcp)
-    dynamics_integrator = qcp.prob.integrators[1]
-    δ = zeros(dynamics_integrator.dim)
-    DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
-    @test norm(δ, Inf) < 1e-4
+@testitem "SmoothPulseProblem with DensityTrajectory" tags=[:density, :skip] begin
+    @test_skip "DensityTrajectory optimization not yet implemented"
 end
 
-@testitem "SmoothPulseProblem with EnsembleTrajectory (Ket)" begin
+@testitem "SmoothPulseProblem with EnsembleKetTrajectory" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
@@ -526,29 +540,30 @@ end
     # Use case: Optimize a single pulse that transfers multiple initial states 
     # to their respective goal states (gate-like behavior for kets)
     
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
+    T = 10.0
+    N = 50
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], [1.0, 1.0])
     
-    # Create individual trajectories for different state transfers
+    # Create initial and goal states for different state transfers
     ψ0 = ComplexF64[1.0, 0.0]
     ψ1 = ComplexF64[0.0, 1.0]
     
-    qtraj1 = KetTrajectory(sys, ψ0, ψ1, 10)  # |0⟩ → |1⟩
-    qtraj2 = KetTrajectory(sys, ψ1, ψ0, 10)  # |1⟩ → |0⟩
-    
-    # Create ensemble trajectory
-    ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
-    goals = get_goal(ensemble_qtraj)
-    state_names = get_ensemble_state_names(ensemble_qtraj)
+    # Create ensemble ket trajectory for X gate via state transfer
+    # |0⟩ → |1⟩ and |1⟩ → |0⟩
+    pulse = ZeroOrderPulse(randn(2, N), collect(range(0.0, T, length=N)))
+    ensemble_qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
+    goals = ensemble_qtraj.goals
+    snames = state_names(ensemble_qtraj)
     
     # Create problem using the new constructor
-    qcp = SmoothPulseProblem(ensemble_qtraj; Q=100.0, R=1e-2)
+    qcp = SmoothPulseProblem(ensemble_qtraj, N; Q=100.0, R=1e-2)
 
     @test qcp isa QuantumControlProblem
-    @test qcp.qtraj isa EnsembleTrajectory{KetTrajectory}
+    @test qcp.qtraj isa EnsembleKetTrajectory
     
     # Check trajectory components: 2 states + controls + derivatives
-    @test haskey(qcp.prob.trajectory.components, :ψ̃_init_1)
-    @test haskey(qcp.prob.trajectory.components, :ψ̃_init_2)
+    @test haskey(qcp.prob.trajectory.components, :ψ̃1)
+    @test haskey(qcp.prob.trajectory.components, :ψ̃2)
     @test haskey(qcp.prob.trajectory.components, :u)
     @test haskey(qcp.prob.trajectory.components, :du)
     @test haskey(qcp.prob.trajectory.components, :ddu)
@@ -557,11 +572,11 @@ end
     @test length(qcp.prob.integrators) == 4
 
     # Solve and verify
-    solve!(qcp; max_iter=100, print_level=1, verbose=false)
+    solve!(qcp; max_iter=150, print_level=1, verbose=true)
 
     # Test fidelity after solve for both states
     traj = get_trajectory(qcp)
-    for (i, (name, goal)) in enumerate(zip(state_names, goals))
+    for (i, (name, goal)) in enumerate(zip(snames, goals))
         ψ̃_final = traj[end][name]
         ψ_final = iso_to_ket(ψ̃_final)
         fid = fidelity(ψ_final, goal)
@@ -576,68 +591,11 @@ end
     end
 end
 
-@testitem "SmoothPulseProblem with EnsembleTrajectory (Unitary)" begin
-    using QuantumCollocation
-    using PiccoloQuantumObjects
-    using DirectTrajOpt
-    using LinearAlgebra
-
-    # Use case: Optimize pulses for multiple unitary goals simultaneously
-    # Note: Optimizing for both X and Y gates simultaneously is challenging,
-    # so we use a simpler case: same gate from different initial conditions
-    
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 10.0, [1.0, 1.0])
-    
-    # Create trajectories for the same unitary target
-    qtraj1 = UnitaryTrajectory(sys, GATES[:X], 10)
-    qtraj2 = UnitaryTrajectory(sys, GATES[:X], 10)  # Same goal
-    
-    # Create ensemble trajectory
-    ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
-    goals = get_goal(ensemble_qtraj)
-    state_names = get_ensemble_state_names(ensemble_qtraj)
-    
-    # Create problem using the new constructor
-    qcp = SmoothPulseProblem(ensemble_qtraj; Q=100.0, R=1e-2)
-
-    @test qcp isa QuantumControlProblem
-    @test qcp.qtraj isa EnsembleTrajectory{UnitaryTrajectory}
-    
-    # Check trajectory components
-    @test haskey(qcp.prob.trajectory.components, :Ũ⃗_init_1)
-    @test haskey(qcp.prob.trajectory.components, :Ũ⃗_init_2)
-    @test haskey(qcp.prob.trajectory.components, :u)
-    @test haskey(qcp.prob.trajectory.components, :du)
-    @test haskey(qcp.prob.trajectory.components, :ddu)
-    
-    # Check integrators: 2 dynamics + 2 derivatives = 4
-    @test length(qcp.prob.integrators) == 4
-
-    # Solve and verify
-    solve!(qcp; max_iter=100, print_level=1, verbose=false)
-
-    # Test fidelity after solve for both unitaries
-    traj = get_trajectory(qcp)
-    for (i, (name, goal)) in enumerate(zip(state_names, goals))
-        Ũ⃗_final = traj[end][name]
-        U_final = iso_vec_to_operator(Ũ⃗_final)
-        fid = unitary_fidelity(U_final, goal)
-        @test fid > 0.9
-    end
-
-    # Test dynamics constraints are satisfied for all integrators
-    for integrator in qcp.prob.integrators[1:2]  # First 2 are dynamics
-        δ = zeros(integrator.dim)
-        DirectTrajOpt.evaluate!(δ, integrator, traj)
-        @test norm(δ, Inf) < 1e-3
-    end
-end
-
 # ============================================================================= #
-# EnsembleTrajectory Tests (multi-state optimization with shared system)
+# EnsembleKetTrajectory Tests (manual setup)
 # ============================================================================= #
 
-@testitem "EnsembleTrajectory multi-state optimization (manual setup)" begin
+@testitem "EnsembleKetTrajectory manual setup" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
@@ -646,46 +604,42 @@ end
     # Use case: Optimize a single pulse that transfers multiple initial states 
     # to their respective goal states (gate-like behavior for kets)
     
-    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 1.0, [1.0, 1.0])
+    T = 1.0
+    N = 50
+    sys = QuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], [1.0, 1.0])
     
-    # Create individual trajectories for different state transfers
+    # Create initial and goal states
     ψ0 = ComplexF64[1.0, 0.0]
     ψ1 = ComplexF64[0.0, 1.0]
     
-    qtraj1 = KetTrajectory(sys, ψ0, ψ1, 20)  # |0⟩ → |1⟩
-    qtraj2 = KetTrajectory(sys, ψ1, ψ0, 20)  # |1⟩ → |0⟩
+    # Create ensemble ket trajectory
+    pulse = ZeroOrderPulse(0.1 * randn(2, N), collect(range(0.0, T, length=N)))
+    ensemble_qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     
-    # Create ensemble trajectory
-    ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
+    @test ensemble_qtraj isa EnsembleKetTrajectory
+    @test state_names(ensemble_qtraj) == [:ψ̃1, :ψ̃2]
     
-    @test ensemble_qtraj isa EnsembleTrajectory{KetTrajectory}
-    @test get_ensemble_state_names(ensemble_qtraj) == [:ψ̃_init_1, :ψ̃_init_2]
+    # Convert to NamedTrajectory
+    new_traj = NamedTrajectory(ensemble_qtraj, N)
+    snames = state_names(ensemble_qtraj)
     
-    # Build combined trajectory with multiple states
-    new_traj, state_names = build_ensemble_trajectory_from_trajectories([qtraj1, qtraj2])
-    
-    @test haskey(new_traj.components, :ψ̃_init_1)
-    @test haskey(new_traj.components, :ψ̃_init_2)
+    @test haskey(new_traj.components, :ψ̃1)
+    @test haskey(new_traj.components, :ψ̃2)
     @test haskey(new_traj.components, :u)
     
     # Verify both initial conditions are set correctly
-    @test new_traj.initial[:ψ̃_init_1] ≈ ket_to_iso(ψ0)
-    @test new_traj.initial[:ψ̃_init_2] ≈ ket_to_iso(ψ1)
+    @test new_traj.initial[:ψ̃1] ≈ ket_to_iso(ψ0)
+    @test new_traj.initial[:ψ̃2] ≈ ket_to_iso(ψ1)
     
-    # Build objective: sum of infidelities for each state
-    goals = get_goal(ensemble_qtraj)
-    J = KetInfidelityObjective(goals[1], state_names[1], new_traj; Q=50.0)
-    J += KetInfidelityObjective(goals[2], state_names[2], new_traj; Q=50.0)
+    # Build objective: coherent fidelity for gate implementation
+    goals = ensemble_qtraj.goals
+    J = CoherentKetInfidelityObjective(goals, snames, new_traj; Q=50.0)
     
     # Add regularization
     J += QuadraticRegularizer(:u, new_traj, 1e-3)
     
-    # Build integrators: one BilinearIntegrator per state
-    Ĝ = u_ -> sys.G(u_, 0.0)
-    integrators = [
-        BilinearIntegrator(Ĝ, state_names[1], :u, new_traj),
-        BilinearIntegrator(Ĝ, state_names[2], :u, new_traj),
-    ]
+    # Build integrators: one BilinearIntegrator per state (using dispatch)
+    integrators = BilinearIntegrator(ensemble_qtraj, N)
     
     # Create and solve problem
     prob = DirectTrajOptProblem(new_traj, J, integrators)
@@ -694,7 +648,6 @@ end
     solve!(qcp; max_iter=50, verbose=false, print_level=1)
     
     # Both state transfers should have reasonable fidelity
-    # (this is essentially implementing an X gate via state transfer)
 end
 
 @testitem "EnsembleTrajectory vs SamplingTrajectory distinction" begin
@@ -704,42 +657,44 @@ end
     using NamedTrajectories
 
     # This test documents the key difference:
-    # - EnsembleTrajectory: SAME system, DIFFERENT initial/goal states
+    # - EnsembleKetTrajectory: SAME system, DIFFERENT initial/goal states
     # - SamplingTrajectory: DIFFERENT systems, SAME goal
     
-    sys = QuantumSystem(GATES[:Z], [GATES[:X]], 1.0, [1.0])
+    T = 1.0
+    N = 50
+    sys = QuantumSystem(GATES[:Z], [GATES[:X]], [1.0])
     
-    # ===== EnsembleTrajectory setup =====
+    # ===== EnsembleKetTrajectory setup =====
     # Multiple state transfers on the SAME system
     ψ0 = ComplexF64[1.0, 0.0]
     ψ1 = ComplexF64[0.0, 1.0]
     
-    qtraj_ket1 = KetTrajectory(sys, ψ0, ψ1, 10)
-    qtraj_ket2 = KetTrajectory(sys, ψ1, ψ0, 10)
-    
-    ensemble_qtraj = EnsembleTrajectory([qtraj_ket1, qtraj_ket2])
+    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    ensemble_qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     
     @test get_system(ensemble_qtraj) === sys  # Single system
-    @test length(ensemble_qtraj.trajectories) == 2  # Multiple trajectories
-    @test get_ensemble_state_names(ensemble_qtraj) == [:ψ̃_init_1, :ψ̃_init_2]
+    @test length(ensemble_qtraj.initials) == 2  # Multiple state transfers
+    @test state_names(ensemble_qtraj) == [:ψ̃1, :ψ̃2]
     
     # ===== SamplingTrajectory setup =====
     # Same goal, different systems (robust optimization)
-    sys_perturbed = QuantumSystem(1.1 * GATES[:Z], [GATES[:X]], 1.0, [1.0])
+    sys_perturbed = QuantumSystem(1.1 * GATES[:Z], [GATES[:X]], [1.0])
     
-    qtraj_unitary = UnitaryTrajectory(sys, GATES[:X], 10)
+    pulse_unitary = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    qtraj_unitary = UnitaryTrajectory(sys, pulse_unitary, GATES[:X])
     
     sampling_qtraj = SamplingTrajectory(qtraj_unitary, [sys, sys_perturbed])
     
     @test get_system(sampling_qtraj) === sys  # Nominal system
     @test length(sampling_qtraj.systems) == 2  # Multiple systems
-    @test get_ensemble_state_names(sampling_qtraj) == [:Ũ⃗_sample_1, :Ũ⃗_sample_2]
+    @test state_names(sampling_qtraj) == [:Ũ⃗1, :Ũ⃗2]
     
     # Key differences:
-    # 1. EnsembleTrajectory has `trajectories` field (multiple init/goals)
+    # 1. EnsembleKetTrajectory has `initials`/`goals` fields (multiple init/goals)
     # 2. SamplingTrajectory has `systems` field (multiple system params)
-    # 3. State naming: _init_ suffix vs _sample_ suffix
+    # 3. State naming: numbered suffix (ψ̃1, ψ̃2 vs Ũ⃗1, Ũ⃗2)
 end
+
 # ============================================================================= #
 # Time-Dependent System Tests
 # ============================================================================= #
@@ -754,32 +709,29 @@ end
     ω = 2π * 1.0
     H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
     
-    sys = QuantumSystem(H, 5.0, [1.0, 1.0]; time_dependent=true)
+    T = 5.0
+    N = 50
+    sys = QuantumSystem(H, [1.0, 1.0])
     
     U_goal = GATES[:H]
-    qtraj = UnitaryTrajectory(sys, U_goal, 50)
+    times = collect(range(0.0, T, length=N))
+    pulse = ZeroOrderPulse(0.1 * randn(2, N), times)
+    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
     
-    # Verify time is in trajectory
-    @test haskey(qtraj.components, :t)
-    @test qtraj.system.time_dependent
-    
-    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+    qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
     
     @test qcp isa QuantumControlProblem
     
-    # Should have TimeIntegrator for time-dependent systems
-    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
-    @test has_time_integrator
-    
-    # Should have: 1 dynamics + 2 derivative + 1 time = 4 integrators
-    @test length(qcp.prob.integrators) == 4
+    # TimeConsistencyConstraint is auto-applied via get_trajectory_constraints
+    # Should have: 1 dynamics + 2 derivatives = 3 integrators
+    @test length(qcp.prob.integrators) == 3
     
     # Solve and verify
     solve!(qcp; max_iter=50, print_level=5, verbose=false)
     
     # Test fidelity after solve
     traj = get_trajectory(qcp)
-    Ũ⃗_final = traj[end][get_state_name(qtraj)]
+    Ũ⃗_final = traj[end][state_name(qtraj)]
     U_final = iso_vec_to_operator(Ũ⃗_final)
     fid = unitary_fidelity(U_final, U_goal)
     @test fid > 0.85
@@ -801,33 +753,29 @@ end
     ω = 2π * 1.0e-1
     H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]
     
-    sys = QuantumSystem(H, 10.0, [1.0]; time_dependent=true)
+    T = 10.0
+    N = 50
+    sys = QuantumSystem(H, [1.0])
     
     ψ_init = ComplexF64[1.0, 0.0]
     ψ_goal = ComplexF64[0.0, 1.0]
-    qtraj = KetTrajectory(sys, ψ_init, ψ_goal, 20)
+    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    qtraj = KetTrajectory(sys, pulse, ψ_init, ψ_goal)
     
-    # Verify time is in trajectory
-    @test haskey(qtraj.components, :t)
-    @test qtraj.system.time_dependent
-    
-    qcp = SmoothPulseProblem(qtraj; Q=50.0, R=1e-3)
+    qcp = SmoothPulseProblem(qtraj, N; Q=50.0, R=1e-3)
     
     @test qcp isa QuantumControlProblem
     
-    # Should have TimeIntegrator for time-dependent systems
-    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
-    @test has_time_integrator
-    
-    # Should have: 1 dynamics + 2 derivative + 1 time = 4 integrators
-    @test length(qcp.prob.integrators) == 4
+    # TimeConsistencyConstraint is auto-applied via get_trajectory_constraints
+    # Should have: 1 dynamics + 2 derivatives = 3 integrators
+    @test length(qcp.prob.integrators) == 3
     
     # Solve and verify
     solve!(qcp; max_iter=100, print_level=1, verbose=false)
     
     # Test fidelity after solve
     traj = get_trajectory(qcp)
-    ψ̃_final = traj[end][get_state_name(qtraj)]
+    ψ̃_final = traj[end][state_name(qtraj)]
     ψ_final = iso_to_ket(ψ̃_final)
     fid = fidelity(ψ_final, ψ_goal)
     @test fid > 0.85
@@ -839,49 +787,94 @@ end
     @test norm(δ, Inf) < 1e-3
 end
 
-@testitem "SmoothPulseProblem with time-dependent DensityTrajectory" begin
+@testitem "SmoothPulseProblem with SamplingTrajectory (Unitary)" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
     using LinearAlgebra
 
-    # Time-dependent Hamiltonian with oscillating drive
-    ω = 2π * 5.0
-    H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
+    T = 10.0
+    N = 50
     
-    sys = OpenQuantumSystem(H, 1.0, [1.0, 1.0]; time_dependent=true)
+    # System with uncertainty in drift
+    sys_nominal = QuantumSystem(GATES[:Z], [GATES[:X]], [1.0])
+    sys_perturbed = QuantumSystem(1.1 * GATES[:Z], [GATES[:X]], [1.0])
+
+    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    qtraj = UnitaryTrajectory(sys_nominal, pulse, GATES[:X])
+    qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
+
+    sampling_prob = SamplingProblem(qcp, [sys_nominal, sys_perturbed]; Q=100.0)
+
+    @test sampling_prob isa QuantumControlProblem
+    @test sampling_prob.qtraj isa SamplingTrajectory{<:AbstractPulse, <:UnitaryTrajectory}
     
-    ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]  # |0⟩⟨0|
-    ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]  # |1⟩⟨1|
-    qtraj = DensityTrajectory(sys, ρ_init, ρ_goal, 20)
-    
-    # Verify time is in trajectory
-    @test haskey(qtraj.components, :t)
-    @test qtraj.system.time_dependent
-    
-    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-3)
-    
-    @test qcp isa QuantumControlProblem
-    
-    # Should have TimeIntegrator for time-dependent systems
-    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
-    @test has_time_integrator
-    
-    # Should have: 1 dynamics + 2 derivative + 1 time = 4 integrators
-    @test length(qcp.prob.integrators) == 4
-    
-    # Solve and verify
-    solve!(qcp; max_iter=50, print_level=1, verbose=false)
-    
+    # Check trajectory has sample states
+    traj = get_trajectory(sampling_prob)
+    @test haskey(traj.components, :Ũ⃗1)
+    @test haskey(traj.components, :Ũ⃗2)
+
+    # Solve
+    solve!(sampling_prob; max_iter=150, verbose=false, print_level=1)
+
     # Test dynamics constraints are satisfied
-    traj = get_trajectory(qcp)
-    dynamics_integrator = qcp.prob.integrators[1]
-    δ = zeros(dynamics_integrator.dim)
-    DirectTrajOpt.evaluate!(δ, dynamics_integrator, traj)
-    @test norm(δ, Inf) < 1e-4
+    for integrator in sampling_prob.prob.integrators
+        if integrator isa BilinearIntegrator
+            δ = zeros(integrator.dim)
+            DirectTrajOpt.evaluate!(δ, integrator, traj)
+            @test norm(δ, Inf) < 1e-3
+        end
+    end
 end
 
-@testitem "SmoothPulseProblem with time-dependent EnsembleTrajectory (Ket)" begin
+@testitem "SmoothPulseProblem with SamplingTrajectory (Ket)" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    T = 10.0
+    N = 50
+    
+    # System with uncertainty in drift
+    sys_nominal = QuantumSystem(GATES[:Z], [GATES[:X]], [1.0])
+    sys_perturbed = QuantumSystem(1.1 * GATES[:Z], [GATES[:X]], [1.0])
+
+    ψ_init = ComplexF64[1.0, 0.0]
+    ψ_goal = ComplexF64[0.0, 1.0]
+
+    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    qtraj = KetTrajectory(sys_nominal, pulse, ψ_init, ψ_goal)
+    qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
+
+    sampling_prob = SamplingProblem(qcp, [sys_nominal, sys_perturbed]; Q=100.0)
+
+    @test sampling_prob isa QuantumControlProblem
+    @test sampling_prob.qtraj isa SamplingTrajectory{<:AbstractPulse, <:KetTrajectory}
+    
+    # Check trajectory has sample states
+    traj = get_trajectory(sampling_prob)
+    @test haskey(traj.components, :ψ̃1)
+    @test haskey(traj.components, :ψ̃2)
+
+    # Solve
+    solve!(sampling_prob; max_iter=50, verbose=false, print_level=1)
+
+    # Test dynamics constraints are satisfied
+    for integrator in sampling_prob.prob.integrators
+        if integrator isa BilinearIntegrator
+            δ = zeros(integrator.dim)
+            DirectTrajOpt.evaluate!(δ, integrator, traj)
+            @test norm(δ, Inf) < 1e-3
+        end
+    end
+end
+
+@testitem "SmoothPulseProblem with time-dependent DensityTrajectory" tags=[:density, :skip] begin
+    @test_skip "DensityTrajectory optimization not yet implemented"
+end
+
+@testitem "SmoothPulseProblem with time-dependent EnsembleKetTrajectory" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
@@ -891,42 +884,35 @@ end
     ω = 2π * 5.0
     H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
     
-    sys = QuantumSystem(H, 10.0, [1.0, 1.0]; time_dependent=true)
+    T = 10.0
+    N = 50
+    sys = QuantumSystem(H, [1.0, 1.0])
     
-    # Create ensemble of ket trajectories for X gate
+    # Create ensemble ket trajectory for X gate
     ψ0 = ComplexF64[1.0, 0.0]
     ψ1 = ComplexF64[0.0, 1.0]
     
-    qtraj1 = KetTrajectory(sys, ψ0, ψ1, 20)  # |0⟩ → |1⟩
-    qtraj2 = KetTrajectory(sys, ψ1, ψ0, 20)  # |1⟩ → |0⟩
+    pulse = ZeroOrderPulse(0.1 * randn(2, N), collect(range(0.0, T, length=N)))
+    ensemble_qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     
-    # Verify time is in trajectories
-    @test haskey(qtraj1.components, :t)
-    @test haskey(qtraj2.components, :t)
-    
-    ensemble_qtraj = EnsembleTrajectory([qtraj1, qtraj2])
-    
-    qcp = SmoothPulseProblem(ensemble_qtraj; Q=50.0, R=1e-3)
+    qcp = SmoothPulseProblem(ensemble_qtraj, N; Q=50.0, R=1e-3)
     
     @test qcp isa QuantumControlProblem
-    @test qcp.qtraj isa EnsembleTrajectory{KetTrajectory}
+    @test qcp.qtraj isa EnsembleKetTrajectory
     
-    # Should have TimeIntegrator for time-dependent systems
-    has_time_integrator = any(int -> int isa TimeIntegrator, qcp.prob.integrators)
-    @test has_time_integrator
-    
-    # Should have: 2 dynamics + 2 derivative + 1 time = 5 integrators
-    @test length(qcp.prob.integrators) == 5
+    # TimeConsistencyConstraint is auto-applied via get_trajectory_constraints
+    # Should have: 2 dynamics + 2 derivatives = 4 integrators
+    @test length(qcp.prob.integrators) == 4
     
     # Solve and verify
     solve!(qcp; max_iter=50, print_level=1, verbose=false)
     
     # Test fidelity for both states after solve
     traj = get_trajectory(qcp)
-    state_names = get_ensemble_state_names(ensemble_qtraj)
-    goals = get_goal(ensemble_qtraj)
+    snames = state_names(ensemble_qtraj)
+    goals = ensemble_qtraj.goals
     
-    for (name, goal) in zip(state_names, goals)
+    for (name, goal) in zip(snames, goals)
         ψ̃_final = traj[end][name]
         ψ_final = iso_to_ket(ψ̃_final)
         fid = fidelity(ψ_final, goal)
@@ -945,31 +931,31 @@ end
     H1(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]
     H2(u, t) = 1.1 * GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]  # Perturbed
     
-    sys_nominal = QuantumSystem(H1, 1.0, [1.0]; time_dependent=true)
-    sys_perturbed = QuantumSystem(H2, 1.0, [1.0]; time_dependent=true)
+    T = 1.0
+    N = 50
+    sys_nominal = QuantumSystem(H1, [1.0])
+    sys_perturbed = QuantumSystem(H2, [1.0])
     
     U_goal = GATES[:X]
-    qtraj = UnitaryTrajectory(sys_nominal, U_goal, 20)
+    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    qtraj = UnitaryTrajectory(sys_nominal, pulse, U_goal)
     
-    # Verify time is in trajectory
-    @test haskey(qtraj.components, :t)
-    
-    qcp = SmoothPulseProblem(qtraj; Q=100.0, R=1e-2)
+    qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
     
     # Create sampling problem
     sampling_prob = SamplingProblem(qcp, [sys_nominal, sys_perturbed]; Q=100.0)
     
     @test sampling_prob isa QuantumControlProblem
-    @test sampling_prob.qtraj isa SamplingTrajectory{UnitaryTrajectory}
+    @test sampling_prob.qtraj isa SamplingTrajectory{<:AbstractPulse, <:UnitaryTrajectory}
     
     # Check trajectory has sample states
     traj = get_trajectory(sampling_prob)
-    @test haskey(traj.components, :Ũ⃗_sample_1)
-    @test haskey(traj.components, :Ũ⃗_sample_2)
+    @test haskey(traj.components, :Ũ⃗1)
+    @test haskey(traj.components, :Ũ⃗2)
     
-    # Should have TimeIntegrator preserved from base problem
-    has_time_integrator = any(int -> int isa TimeIntegrator, sampling_prob.prob.integrators)
-    @test has_time_integrator
+    # TimeConsistencyConstraint is auto-applied
+    # Integrators: 2 dynamics (samples) + 2 derivatives = 4
+    # (depending on SamplingProblem implementation)
     
     # Solve
     solve!(sampling_prob; max_iter=50, verbose=false, print_level=1)

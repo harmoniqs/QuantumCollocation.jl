@@ -10,7 +10,7 @@ using NamedTrajectories
 
 # Once you've created a problem template, solving is straightforward with the `solve!` function:
 
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], [1.0, 1.0])
 U_goal = EmbeddedOperator(GATES.H, system)
 N = 51
 

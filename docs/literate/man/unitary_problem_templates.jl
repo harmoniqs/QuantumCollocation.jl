@@ -20,7 +20,7 @@ target unitary operator, `U_goal`.
 
 =#
 
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], [1.0, 1.0])
 U_goal = EmbeddedOperator(GATES.H, system)
 N = 51
 
@@ -132,7 +132,7 @@ This can be useful for exploring robustness, for example.
 =#
 
 # _create a sampling problem_
-driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], [1.0, 1.0])
 sampling_prob = UnitarySamplingProblem([system, driftless_system], U_goal, N);
 
 # _new keys are addded to the trajectory for the new states_
@@ -156,10 +156,9 @@ for more details.
 =#
 
 # _create a variational system, with a variational Hamiltonian, `PAULIS.X`_
-T_max = 1.0
 u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 H_var = PAULIS.X
-varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], 10.0, [1.0, 1.0]);
+varsys = VariationalQuantumSystem([PAULIS.X, PAULIS.Y], [H_var], [1.0, 1.0]);
 
 # _create a variational problem that is robust to `PAULIS.X` at the end_
 robprob = UnitaryVariationalProblem(varsys, U_goal, N, robust_times=[[N]]);
