@@ -20,7 +20,7 @@ using DirectTrajOpt
 
 H_drift = 0.1 * PAULIS.Z
 H_drives = [PAULIS.X, PAULIS.Y]
-sys = QuantumSystem(H_drift, H_drives, 10.0, [1.0, 1.0])
+sys = QuantumSystem(H_drift, H_drives, [1.0, 1.0])
 U_goal = GATES.H
 N = 51
 
@@ -48,10 +48,11 @@ prob_with_bounds = UnitarySmoothPulseProblem(sys, U_goal, N;
 # To add bounds on other trajectory variables:
 
 # Create trajectory with custom bounds
+T = 10.0  # Total duration
 traj = initialize_unitary_trajectory(
     U_goal,
     N,
-    sys.T_max / N,
+    T / N,
     sys.n_drives,
     (sys.drive_bounds, fill((-0.5, 0.5), sys.n_drives), fill((-0.1, 0.1), sys.n_drives));
     state_name=:Ũ⃗,
@@ -177,7 +178,7 @@ energy_constr = NonlinearGlobalConstraint(
 # Define a 3-level system (qubit + 1 leakage level)
 a = annihilate(3)
 H_drives_3level = [(a + a')/2, (a - a')/(2im)]
-sys_3level = QuantumSystem(H_drives_3level, 10.0, [1.0, 1.0])
+sys_3level = QuantumSystem(H_drives_3level, [1.0, 1.0])
 
 # Target: X gate in computational subspace
 U_goal_embedded = EmbeddedOperator(GATES.X, sys_3level)

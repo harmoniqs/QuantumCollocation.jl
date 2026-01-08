@@ -16,7 +16,7 @@ using NamedTrajectories
 
 H_drift = 0.1 * PAULIS.Z
 H_drives = [PAULIS.X, PAULIS.Y]
-sys = QuantumSystem(H_drift, H_drives, 10.0, [1.0, 1.0])
+sys = QuantumSystem(H_drift, H_drives, [1.0, 1.0])
 U_goal = GATES.H
 N = 51
 

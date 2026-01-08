@@ -18,7 +18,7 @@ opts_custom = PiccoloOptions(
 )
 
 # Pass to any problem template:
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], [1.0, 1.0])
 U_goal = EmbeddedOperator(GATES.H, system)
 N = 51
 

@@ -1,0 +1,240 @@
+# QuantumCollocation.jl Context
+
+> AI-friendly context for maintaining consistency. Update this when making significant changes.
+
+## Package Purpose
+
+QuantumCollocation.jl provides **problem templates** for quantum optimal control using direct collocation. It builds on:
+- **DirectTrajOpt.jl** - Core optimization infrastructure (objectives, constraints, integrators, NLP solver)
+- **PiccoloQuantumObjects.jl** - Quantum systems, trajectories, pulses, and utilities
+- **NamedTrajectories.jl** - Named variable trajectory data structure
+
+The main abstractions are:
+1. **QuantumControlProblem** - Wrapper combining quantum trajectory info with optimization problem
+2. **Problem Templates** - Constructors that build complete optimization problems
+
+## Canonical Workflow
+
+### Basic Gate Synthesis
+
+```julia
+using QuantumCollocation
+using PiccoloQuantumObjects
+
+# 1. Define quantum system (no T_max - duration comes from trajectory)
+H_drift = GATES[:Z]
+H_drives = [GATES[:X], GATES[:Y]]
+drive_bounds = [1.0, 1.0]  # symmetric bounds
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
+
+# 2. Create quantum trajectory (defines the control problem)
+U_goal = GATES[:H]  # target: Hadamard gate
+T = 10.0  # duration
+qtraj = UnitaryTrajectory(sys, U_goal, T)  # creates zero pulse internally
+
+# 3. Build optimization problem
+N = 51  # number of timesteps
+qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
+
+# 4. Solve
+solve!(qcp; max_iter=200)
+
+# 5. Extract results
+traj = get_trajectory(qcp)
+U_final = iso_vec_to_operator(traj[end][:Ũ⃗])
+fid = unitary_fidelity(U_final, U_goal)
+```
+
+### State Transfer (Ket)
+
+```julia
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
+
+ψ_init = ComplexF64[1.0, 0.0]  # |0⟩
+ψ_goal = ComplexF64[0.0, 1.0]  # |1⟩
+T = 10.0
+qtraj = KetTrajectory(sys, ψ_init, ψ_goal, T)
+
+qcp = SmoothPulseProblem(qtraj, N; Q=50.0, R=1e-3)
+solve!(qcp; max_iter=100)
+```
+
+### Ensemble Control (Multiple Initial States)
+
+```julia
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
+
+# X gate: |0⟩→|1⟩ and |1⟩→|0⟩
+initials = [ComplexF64[1,0], ComplexF64[0,1]]
+goals = [ComplexF64[0,1], ComplexF64[1,0]]
+T = 10.0
+qtraj = EnsembleKetTrajectory(sys, initials, goals, T)
+
+qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
+solve!(qcp; max_iter=200)
+```
+
+### With Explicit Pulse (Spline-Based)
+
+```julia
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
+
+# Create explicit pulse with initial guess
+T = 10.0
+times = collect(range(0.0, T, length=N))
+controls = 0.1 * randn(sys.n_drives, N)
+pulse = LinearSplinePulse(controls, times)
+
+qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+
+# Use SplinePulseProblem for spline pulses
+qcp = SplinePulseProblem(qtraj, N; Q=100.0, R=1e-2, du_bound=10.0)
+solve!(qcp; max_iter=200)
+```
+
+### Minimum Time Optimization
+
+```julia
+# First solve with fixed time
+qcp = SmoothPulseProblem(qtraj, N; Q=100.0, Δt_bounds=(0.01, 0.5))
+solve!(qcp; max_iter=100)
+
+# Convert to minimum-time problem
+qcp_mintime = MinimumTimeProblem(qcp; final_fidelity=0.99, D=50.0)
+solve!(qcp_mintime; max_iter=100)
+```
+
+### Robust Control (Parameter Sampling)
+
+```julia
+# Create base problem
+qtraj = UnitaryTrajectory(sys_nominal, pulse, U_goal)
+qcp = SmoothPulseProblem(qtraj, N; Q=100.0)
+
+# Add robustness over parameter variations
+sampling_prob = SamplingProblem(qcp, [sys_nominal, sys_perturbed]; Q=100.0)
+solve!(sampling_prob; max_iter=200)
+```
+
+## Key Abstractions
+
+### Quantum Trajectories (defined in PiccoloQuantumObjects.jl)
+
+Parametric type hierarchy (see PiccoloQuantumObjects.jl/CONTEXT.md for details):
+```
+AbstractQuantumTrajectory{P<:AbstractPulse}
+├── UnitaryTrajectory{P}      # Full unitary evolution
+├── KetTrajectory{P}          # Single state evolution  
+├── EnsembleKetTrajectory{P}  # Multiple states, shared controls
+├── DensityTrajectory{P}      # Density matrix evolution (WIP)
+└── SamplingTrajectory{P,Q}   # Robustness over system parameters
+```
+
+QuantumCollocation.jl **uses** these types and provides problem templates that build on them.
+
+### Problem Templates
+
+| Template | Use Case | Pulse Type |
+|----------|----------|------------|
+| `SmoothPulseProblem` | Standard optimization with smooth pulses | `ZeroOrderPulse` (piecewise constant) |
+| `SplinePulseProblem` | Spline-based pulse optimization | `LinearSplinePulse`, `CubicSplinePulse` |
+| `MinimumTimeProblem` | Time-optimal control | Any (converts existing problem) |
+| `SamplingProblem` | Robust control over parameters | Any (wraps existing problem) |
+
+**SmoothPulseProblem** (for ZeroOrderPulse):
+- Adds derivative variables `:du`, `:ddu` for smoothness
+- Creates `DerivativeIntegrator` constraints enforcing `u[k+1] - u[k] = Δt * du[k]`
+- Applies quadratic regularization on `u`, `du`, `ddu`
+
+**SplinePulseProblem** (for spline pulses):
+- For `LinearSplinePulse`: `:du` represents slopes (added automatically)
+- For `CubicSplinePulse`: `:du` represents Hermite tangents (built into pulse)
+- Uses `DerivativeIntegrator` with spline semantics
+
+### Quantum Integrators (`quantum_integrators.jl`)
+
+`BilinearIntegrator` dispatches on trajectory type:
+```julia
+BilinearIntegrator(qtraj::UnitaryTrajectory, N)      # → single integrator
+BilinearIntegrator(qtraj::KetTrajectory, N)          # → single integrator
+BilinearIntegrator(qtraj::EnsembleKetTrajectory, N)  # → Vector of integrators
+BilinearIntegrator(qtraj::SamplingTrajectory, N)     # → Vector of integrators
+```
+
+**Signature pattern:** `(qtraj, N::Int)` - creates NamedTrajectory internally
+
+### Quantum Constraints (`quantum_constraints.jl`)
+
+Fidelity constraints for minimum-time problems:
+- `FinalUnitaryFidelityConstraint(qtraj, traj, fidelity)`
+- `FinalKetFidelityConstraint(qtraj, traj, fidelity)`
+- `FinalCoherentKetFidelityConstraint(qtraj, traj, fidelity)` - For ensembles, preserves phase coherence
+
+## Component Naming Conventions
+
+| Component | Symbol | Description |
+|-----------|--------|-------------|
+| Unitary state | `:Ũ⃗` | Isomorphism-vectorized unitary |
+| Ket state | `:ψ̃` | Isomorphism-vectorized ket |
+| Ensemble kets | `:ψ̃1`, `:ψ̃2`, ... | Multiple states |
+| Sampling states | `:Ũ⃗1`, `:Ũ⃗2`, ... | States for each system sample |
+| Controls | `:u` | Pulse amplitudes (canonical name) |
+| Control derivative | `:du` | First derivative / slope |
+| Control 2nd derivative | `:ddu` | Second derivative / acceleration |
+| Timestep | `:Δt` | Duration of each timestep |
+| Time | `:t` | Accumulated time (always present) |
+
+## Testing Conventions
+
+Tests use `@testitem` blocks in source files:
+```julia
+@testitem "descriptive name" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using DirectTrajOpt
+    using LinearAlgebra
+    # ... test code
+end
+```
+
+Run tests with `TestItemRunner.@run_package_tests`.
+
+## Recent Changes (Update This!)
+
+### January 2026
+- Removed `time_dependent=true` from test QuantumSystem constructions (`:t` is now always in trajectories)
+- Removed `adapt_trajectory`/`unadapt_trajectory` usage (control scaling removed)
+- Updated `BilinearIntegrator` signatures from `(qtraj, traj)` to `(qtraj, N)`
+- Added `FinalCoherentKetFidelityConstraint` for ensemble minimum-time problems
+
+### Removed Patterns (Don't Reintroduce!)
+- ❌ `adapt_trajectory` / `unadapt_trajectory` - Control scaling was removed
+- ❌ `@test sys.time_dependent` in tests - Not needed since `:t` is always present
+- ❌ `QuantumSystem(...; time_dependent=true)` in tests - Redundant
+- ❌ Control name `:a` - Canonical control name is `:u`
+
+## File Structure
+
+```
+src/
+├── QuantumCollocation.jl      # Main module, reexports
+├── piccolo_options.jl         # PiccoloOptions configuration
+├── quantum_control_problem.jl # QuantumControlProblem wrapper
+├── quantum_integrators.jl     # BilinearIntegrator dispatch
+├── quantum_constraints.jl     # Fidelity constraints
+├── quantum_objectives.jl      # Fidelity objectives
+└── problem_templates/
+    ├── _problem_templates.jl  # Submodule definition
+    ├── smooth_pulse_problem.jl  # ZeroOrderPulse optimization
+    ├── spline_pulse_problem.jl  # Spline pulse optimization
+    ├── minimum_time_problem.jl  # Time-optimal control
+    └── sampling_problem.jl      # Robust control
+```
+
+## Common Gotchas
+
+1. **Pulse type determines problem template**: Use `SmoothPulseProblem` for `ZeroOrderPulse`, `SplinePulseProblem` for spline pulses
+2. **N is timesteps, not knot points**: For `N=51`, you get 50 intervals
+3. **Trajectories always have `:t`**: Time is accumulated automatically, no need for `time_dependent` flag
+4. **EnsembleKetTrajectory vs SamplingTrajectory**: Ensemble = same system, different initial states; Sampling = different systems, same initial state
+5. **Fidelity vs Infidelity**: Objectives minimize infidelity, constraints bound infidelity (e.g., `1 - fidelity ≤ 1 - 0.99`)

@@ -46,7 +46,7 @@ levels = 5
 u_bound = 0.2
 
 ## create the system
-sys = TransmonSystem(levels=levels, δ=δ, T_max=T₀, drive_bounds=fill(u_bound, 2))
+sys = TransmonSystem(levels=levels, δ=δ, drive_bounds=fill(u_bound, 2))
 
 
 # Since this is a multilevel transmon and we want to implement an, let's say, $X$ gate on the qubit subspace, i.e., the first two levels we can utilize the `EmbeddedOperator` type to define the target operator.

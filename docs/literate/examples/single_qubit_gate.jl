@@ -26,7 +26,7 @@ T_max = 10.0  # Maximum time (ns or μs, depends on your units)
 drive_bounds = [(-1.0, 1.0), (-1.0, 1.0)]  # Control amplitude bounds
 
 ## Create the quantum system
-sys = QuantumSystem(H_drift, H_drives, T_max, drive_bounds)
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
 
 # ## Define the Target Gate
 

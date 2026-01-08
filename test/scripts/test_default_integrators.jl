@@ -10,7 +10,6 @@ println()
 sys = QuantumSystem(
     GATES[:Z],              # H_drift
     [GATES[:X], GATES[:Y]], # H_drives
-    1.0,                    # T_max
     [1.0, 1.0]             # drive_bounds
 )
 
@@ -91,7 +90,7 @@ ket_int = default_integrator(ket_traj)
 println("✓ KetTrajectory → ", typeof(ket_int))
 
 # Density trajectory
-open_sys = OpenQuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], 1.0, [1.0, 1.0])
+open_sys = OpenQuantumSystem(GATES[:Z], [GATES[:X], GATES[:Y]], [1.0, 1.0])
 ρ_init = ComplexF64[1.0 0.0; 0.0 0.0]
 ρ_goal = ComplexF64[0.0 0.0; 0.0 1.0]
 density_traj = density_trajectory(open_sys, ρ_init, ρ_goal, 10)

@@ -20,7 +20,7 @@ intial state, `ψ_init`, to a target state, `ψ_goal`.
 =#
 
 # _define the quantum system_
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], [1.0, 1.0])
 ψ_init = Vector{ComplexF64}([1.0, 0.0])
 ψ_goal = Vector{ComplexF64}([0.0, 1.0])
 N = 51
@@ -119,7 +119,7 @@ QuantumStateSamplingProblem
 =#
 
 # _create a sampling problem_
-driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], 10.0, [1.0, 1.0])
+driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], [1.0, 1.0])
 sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, N);
 
 # _new keys are added to the trajectory for the new states_

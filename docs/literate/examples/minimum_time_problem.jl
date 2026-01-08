@@ -20,7 +20,7 @@ H_drives = [PAULIS.X, PAULIS.Y]
 T_max = 50.0  # Start with generous time budget
 drive_bounds = [(-0.5, 0.5), (-0.5, 0.5)]
 
-sys = QuantumSystem(H_drift, H_drives, T_max, drive_bounds)
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
 
 # Target gate: X gate (π rotation about X axis)
 

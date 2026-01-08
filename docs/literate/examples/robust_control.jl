@@ -24,7 +24,7 @@ H_drives = [PAULIS.X, PAULIS.Y]
 T_max = 15.0
 drive_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
 
-sys_nominal = QuantumSystem(H_drift_nominal, H_drives, T_max, drive_bounds)
+sys_nominal = QuantumSystem(H_drift_nominal, H_drives, drive_bounds)
 
 # Target: Hadamard gate
 
@@ -55,7 +55,7 @@ systems = QuantumSystem[]
 
 for δ in drift_variations
     H_drift_varied = (1.0 + δ) * H_drift_nominal
-    sys = QuantumSystem(H_drift_varied, H_drives, T_max, drive_bounds)
+    sys = QuantumSystem(H_drift_varied, H_drives, drive_bounds)
     push!(systems, sys)
 end
 
@@ -177,7 +177,7 @@ for drift_δ in drift_vals
     for ctrl_scale in control_scale_vals
         H_drift = (1.0 + drift_δ) * H_drift_nominal
         H_drives_scaled = [ctrl_scale * H for H in H_drives]
-        sys = QuantumSystem(H_drift, H_drives_scaled, T_max, drive_bounds)
+        sys = QuantumSystem(H_drift, H_drives_scaled, drive_bounds)
         push!(systems_extended, sys)
         push!(operators_extended, EmbeddedOperator(U_goal, sys))
     end
