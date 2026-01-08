@@ -200,17 +200,6 @@ function _final_fidelity_constraint(
     throw(ArgumentError("Final fidelity constraint for DensityTrajectory not yet implemented"))
 end
 
-function _final_fidelity_constraint(
-    qtraj::EnsembleTrajectory{KetTrajectory},
-    final_fidelity::Float64,
-    traj::NamedTrajectory
-    )
-    U_goals = PiccoloQuantumObjects.get_goal(qtraj)
-    state_names = PiccoloQuantumObjects.get_ensemble_state_names(qtraj)   
-    [FinalKetFidelityConstraint(U_goal, state_sym, final_fidelity, traj) for (U_goal, state_sym) in zip(U_goals, state_names)]
-end
-
-
 # ============================================================================= #
 # EnsembleKetTrajectory Support
 # ============================================================================= #
