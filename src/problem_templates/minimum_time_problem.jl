@@ -201,13 +201,13 @@ function _final_fidelity_constraint(
 end
 
 # ============================================================================= #
-# EnsembleKetTrajectory Support
+# MultiKetTrajectory Support
 # ============================================================================= #
 
 """
-    _final_fidelity_constraint(qtraj::EnsembleKetTrajectory, final_fidelity, traj)
+    _final_fidelity_constraint(qtraj::MultiKetTrajectory, final_fidelity, traj)
 
-Create a coherent fidelity constraint for an EnsembleKetTrajectory.
+Create a coherent fidelity constraint for an MultiKetTrajectory.
 
 Uses coherent fidelity: F = |1/n ∑ᵢ ⟨ψᵢ_goal|ψᵢ⟩|²
 
@@ -216,7 +216,7 @@ essential when implementing a gate via state transfer (e.g., X gate via
 |0⟩→|1⟩ and |1⟩→|0⟩).
 """
 function _final_fidelity_constraint(
-    qtraj::EnsembleKetTrajectory,
+    qtraj::MultiKetTrajectory,
     final_fidelity::Float64,
     traj::NamedTrajectory
 )
@@ -237,12 +237,12 @@ function _ensemble_fidelity_constraint(
     throw(ArgumentError("Final fidelity constraint for DensityTrajectory ensemble not yet implemented"))
 end
 
-# Update goal for EnsembleKetTrajectory is not typically needed since goals are embedded
+# Update goal for MultiKetTrajectory is not typically needed since goals are embedded
 # in the trajectory. But we provide a fallback that errors clearly.
-function _update_goal(qtraj::EnsembleKetTrajectory, new_goal)
+function _update_goal(qtraj::MultiKetTrajectory, new_goal)
     throw(ArgumentError(
-        "Updating goals for EnsembleKetTrajectory is not directly supported. " *
-        "Create a new EnsembleKetTrajectory with the desired goals instead."
+        "Updating goals for MultiKetTrajectory is not directly supported. " *
+        "Create a new MultiKetTrajectory with the desired goals instead."
     ))
 end
 
@@ -443,7 +443,7 @@ end
     solve!(mintime_prob; max_iter=15, verbose=false, print_level=1)
 end
 
-@testitem "MinimumTimeProblem with EnsembleKetTrajectory" begin
+@testitem "MinimumTimeProblem with MultiKetTrajectory" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
@@ -461,7 +461,7 @@ end
     ψ1 = ComplexF64[0.0, 1.0]
     
     pulse = ZeroOrderPulse(0.1 * randn(2, N), collect(range(0.0, T, length=N)))
-    ensemble_qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
+    ensemble_qtraj = MultiKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     
     # Create and solve smooth pulse problem
     qcp_smooth = SmoothPulseProblem(ensemble_qtraj, N; Q=100.0, R=1e-2, Δt_bounds=(0.01, 0.5))
@@ -472,8 +472,8 @@ end
     # Convert to minimum-time problem
     qcp_mintime = MinimumTimeProblem(qcp_smooth; final_fidelity=0.90, D=50.0)
     
-    @test qcp_mintime isa QuantumControlProblem{<:EnsembleKetTrajectory}
-    @test qcp_mintime.qtraj isa EnsembleKetTrajectory
+    @test qcp_mintime isa QuantumControlProblem{<:MultiKetTrajectory}
+    @test qcp_mintime.qtraj isa MultiKetTrajectory
     
     # Should have fidelity constraints for each ensemble member
     # (one per state transfer in the ensemble)
@@ -510,7 +510,7 @@ end
     ω = 2π * 5.0
     H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
     
-    T = 1.0
+    T = 5.0
     N = 50
     sys = QuantumSystem(H, [1.0, 1.0])
     
@@ -550,7 +550,7 @@ end
     ω = 2π * 5.0
     H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X]
     
-    T = 1.0
+    T = 5.0
     N = 50
     sys = QuantumSystem(H, [1.0])
     
@@ -566,7 +566,7 @@ end
     # TimeConsistencyConstraint is auto-applied
     @test length(qcp_smooth.prob.integrators) == 3  # dynamics + 2 derivatives
     
-    solve!(qcp_smooth; max_iter=30, verbose=false, print_level=1)
+    solve!(qcp_smooth; max_iter=100, verbose=false, print_level=1)
     
     duration_before = sum(get_timesteps(get_trajectory(qcp_smooth)))
     
@@ -582,7 +582,7 @@ end
     @test duration_after <= duration_before * 1.1
 end
 
-@testitem "MinimumTimeProblem with time-dependent EnsembleKetTrajectory" begin
+@testitem "MinimumTimeProblem with time-dependent MultiKetTrajectory" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
@@ -593,7 +593,7 @@ end
     ω = 2π * 5.0
     H(u, t) = GATES[:Z] + u[1] * cos(ω * t) * GATES[:X] + u[2] * sin(ω * t) * GATES[:Y]
     
-    T = 1.0
+    T = 5.0
     N = 50
     sys = QuantumSystem(H, [1.0, 1.0])
     
@@ -602,7 +602,7 @@ end
     ψ1 = ComplexF64[0.0, 1.0]
     
     pulse = ZeroOrderPulse(0.1 * randn(2, N), collect(range(0.0, T, length=N)))
-    qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
+    qtraj = MultiKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     
     # Create and solve smooth pulse problem
     qcp_smooth = SmoothPulseProblem(qtraj, N; Q=50.0, R=1e-3, Δt_bounds=(0.01, 0.5))
@@ -618,7 +618,7 @@ end
     # Convert to minimum-time
     qcp_mintime = MinimumTimeProblem(qcp_smooth; final_fidelity=0.80, D=50.0)
     
-    @test qcp_mintime isa QuantumControlProblem{<:EnsembleKetTrajectory}
+    @test qcp_mintime isa QuantumControlProblem{<:MultiKetTrajectory}
     
     # Solve minimum-time problem
     solve!(qcp_mintime; max_iter=30, verbose=false, print_level=1)

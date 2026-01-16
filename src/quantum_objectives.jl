@@ -161,6 +161,7 @@ function CoherentKetInfidelityObjective(
         return abs(1 - coherent_ket_fidelity(ψ̃s, goals))
     end
     
+    # Pass vector of component names for multi-component terminal objective
     return TerminalObjective(ℓ, ψ̃_names, traj; Q=Q)
 end
 

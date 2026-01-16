@@ -5,12 +5,12 @@ using NamedTrajectories
 using PiccoloQuantumObjects
 using TestItems
 
-import PiccoloQuantumObjects: get_system, get_goal, state_name, drive_name, rebuild
+import PiccoloQuantumObjects: get_system, get_goal, state_name, drive_name, extract_pulse, fidelity
 import DirectTrajOpt.Solvers: solve!
 
 export QuantumControlProblem
 export get_trajectory, get_system, get_goal, state_name, drive_name
-export solve!, sync_trajectory!
+export solve!, sync_trajectory!, fidelity
 # Note: solve! is NOT exported to avoid ambiguity with SciMLBase.solve!
 # Users should use: using DirectTrajOpt (to get solve!)
 
@@ -91,6 +91,21 @@ Get the control variable name from the quantum trajectory.
 """
 drive_name(qcp::QuantumControlProblem) = drive_name(qcp.qtraj)
 
+"""
+    fidelity(qcp::QuantumControlProblem; kwargs...)
+
+Compute the fidelity of the quantum trajectory.
+
+This is a convenience wrapper that forwards to `fidelity(qcp.qtraj; kwargs...)`.
+
+# Example
+```julia
+solve!(qcp)
+fid = fidelity(qcp)  # Equivalent to fidelity(qcp.qtraj)
+```
+"""
+fidelity(qcp::QuantumControlProblem; kwargs...) = fidelity(qcp.qtraj; kwargs...)
+
 # ============================================================================= #
 # Forward DirectTrajOptProblem methods
 # ============================================================================= #
@@ -98,11 +113,11 @@ drive_name(qcp::QuantumControlProblem) = drive_name(qcp.qtraj)
 """
     sync_trajectory!(qcp::QuantumControlProblem)
 
-Rebuild the quantum trajectory from the optimized control values.
+Update the quantum trajectory in-place from the optimized control values.
 
 After optimization, this function:
 1. Extracts the optimized controls from `prob.trajectory` (unadapting if needed)
-2. Creates a new pulse with those controls
+2. Creates a new pulse with those controls via `extract_pulse`
 3. Re-solves the ODE to get the updated quantum evolution
 4. Replaces `qtraj` with the new quantum trajectory
 
@@ -120,8 +135,9 @@ pulse = get_pulse(qcp.qtraj)  # Get the optimized pulse
 ```
 """
 function sync_trajectory!(qcp::QuantumControlProblem)
-    # Rebuild the quantum trajectory with new pulse and ODE solution
-    qcp.qtraj = PiccoloQuantumObjects.rebuild(qcp.qtraj, qcp.prob.trajectory)
+    # Extract the optimized pulse from the discrete trajectory and roll it out in-place
+    pulse = PiccoloQuantumObjects.extract_pulse(qcp.qtraj, qcp.prob.trajectory)
+    PiccoloQuantumObjects.rollout!(qcp.qtraj, pulse)
     
     return nothing
 end
@@ -177,7 +193,7 @@ end
 # Tests
 # ============================================================================= #
 
-@testitem "sync_trajectory! rebuilds quantum trajectory" begin
+@testitem "sync_trajectory! updates quantum trajectory" begin
     using DirectTrajOpt
     using PiccoloQuantumObjects
     using NamedTrajectories
@@ -221,7 +237,7 @@ end
     u_opt = π / (2 * T)
     qcp.prob.trajectory.u .= u_opt
     
-    # Call sync to rebuild qtraj with new controls
+    # Call sync to update qtraj with new controls
     sync_trajectory!(qcp)
     
     # The qtraj should now have the optimized pulse
@@ -234,7 +250,7 @@ end
     @test final_fid > 0.9  # Should be near 1 now
 end
 
-@testitem "solve! with sync=true rebuilds trajectory" begin
+@testitem "solve! with sync=true updates trajectory" begin
     using DirectTrajOpt
     using PiccoloQuantumObjects
     using NamedTrajectories
@@ -272,10 +288,10 @@ end
     # Solve with max_iter=0 (no optimization, just test sync mechanism)
     solve!(qcp; max_iter=0, sync=true)
     
-    # qtraj should be rebuilt (new object, but same controls since no optimization)
+    # qtraj should be updated (in-place, but new solution)
     @test true  # If we get here without errors, sync worked
     
-    # Test sync=false doesn't rebuild
+    # Test sync=false doesn't update trajectory
     qtraj2 = KetTrajectory(sys, pulse, ψ_init, ψ_target)
     traj2 = NamedTrajectory(qtraj2, N)
     prob2 = DirectTrajOptProblem(traj2, obj, integrator)
@@ -286,7 +302,7 @@ end
     @test qcp2.qtraj === original_qtraj2  # Same object, not rebuilt
 end
 
-@testitem "rebuild creates new trajectory with updated pulse" begin
+@testitem "extract_pulse and rollout creates new trajectory with updated pulse" begin
     using PiccoloQuantumObjects
     using LinearAlgebra
     using NamedTrajectories
@@ -326,8 +342,9 @@ end
         goal=traj.goal
     )
     
-    # Rebuild with new controls
-    new_qtraj = PiccoloQuantumObjects.rebuild(qtraj, new_traj)
+    # Extract pulse and rollout with new controls
+    new_pulse = PiccoloQuantumObjects.extract_pulse(qtraj, new_traj)
+    new_qtraj = PiccoloQuantumObjects.rollout(qtraj, new_pulse)
     
     # Check pulse was updated (access underlying data via .u)
     @test all(new_qtraj.pulse.controls.u .≈ u_opt)

@@ -4,7 +4,7 @@ using LinearAlgebra
 using NamedTrajectories
 using DirectTrajOpt
 using PiccoloQuantumObjects
-using PiccoloQuantumObjects: SamplingTrajectory, EnsembleKetTrajectory, 
+using PiccoloQuantumObjects: SamplingTrajectory, MultiKetTrajectory, 
     state_name, state_names, drive_name
 using SparseArrays
 using TestItems
@@ -56,11 +56,11 @@ function BilinearIntegrator(qtraj::DensityTrajectory, N::Int)
 end
 
 """
-    BilinearIntegrator(qtraj::EnsembleKetTrajectory, N::Int)
+    BilinearIntegrator(qtraj::MultiKetTrajectory, N::Int)
 
-Create a vector of BilinearIntegrators for each ket in an EnsembleKetTrajectory.
+Create a vector of BilinearIntegrators for each ket in an MultiKetTrajectory.
 """
-function BilinearIntegrator(qtraj::EnsembleKetTrajectory, N::Int)
+function BilinearIntegrator(qtraj::MultiKetTrajectory, N::Int)
     sys = get_system(qtraj)
     traj = NamedTrajectory(qtraj, N)
     Ĝ = u_ -> sys.G(u_, 0.0)
@@ -294,9 +294,9 @@ end
     end
 end
 
-@testitem "BilinearIntegrator dispatch on EnsembleKetTrajectory" begin
+@testitem "BilinearIntegrator dispatch on MultiKetTrajectory" begin
     using PiccoloQuantumObjects
-    using PiccoloQuantumObjects: EnsembleKetTrajectory, state_names
+    using PiccoloQuantumObjects: MultiKetTrajectory, state_names
     using DirectTrajOpt
     using NamedTrajectories
 
@@ -314,7 +314,7 @@ end
     pulse = LinearSplinePulse(controls, times)
     
     # Create ensemble trajectory: |0⟩ → |1⟩ and |1⟩ → |0⟩
-    qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
+    qtraj = MultiKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     traj = NamedTrajectory(qtraj, N)
 
     # Create integrators
@@ -387,9 +387,9 @@ end
     test_integrator(integrator, traj; atol=1e-2)
 end
 
-@testitem "BilinearIntegrator dispatch on time-dependent EnsembleKetTrajectory" begin
+@testitem "BilinearIntegrator dispatch on time-dependent MultiKetTrajectory" begin
     using PiccoloQuantumObjects
-    using PiccoloQuantumObjects: EnsembleKetTrajectory
+    using PiccoloQuantumObjects: MultiKetTrajectory
     using DirectTrajOpt
     using NamedTrajectories
 
@@ -408,7 +408,7 @@ end
     controls = zeros(2, N)
     pulse = LinearSplinePulse(controls, times)
     
-    qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
+    qtraj = MultiKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     traj = NamedTrajectory(qtraj, N)
 
     integrators = BilinearIntegrator(qtraj, N)

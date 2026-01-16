@@ -46,7 +46,7 @@ Create a final fidelity constraint using coherent ket fidelity across multiple s
 Coherent fidelity: F = |1/n ∑ᵢ ⟨ψᵢ_goal|ψᵢ⟩|²
 
 This constraint enforces that all state overlaps have aligned phases, which is 
-essential when implementing a gate via multiple state transfers (e.g., EnsembleKetTrajectory).
+essential when implementing a gate via multiple state transfers (e.g., MultiKetTrajectory).
 
 # Arguments
 - `ψ_goals::Vector{<:AbstractVector{<:Complex}}`: Target ket states

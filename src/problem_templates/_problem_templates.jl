@@ -10,7 +10,7 @@ using TrajectoryIndexingUtils
 using NamedTrajectories
 using DirectTrajOpt
 using PiccoloQuantumObjects
-using PiccoloQuantumObjects: SamplingTrajectory, EnsembleKetTrajectory, 
+using PiccoloQuantumObjects: SamplingTrajectory, MultiKetTrajectory, 
     state_names, get_weights, AbstractSplinePulse, AbstractPulse, ZeroOrderPulse,
     LinearSplinePulse, CubicSplinePulse
 

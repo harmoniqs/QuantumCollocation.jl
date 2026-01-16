@@ -93,7 +93,15 @@ function SplinePulseProblem(
     du_sym = Symbol(:d, control_sym)
     
     traj = if haskey(base_traj.components, du_sym)
-        # CubicSplinePulse already has derivative DOFs
+        # CubicSplinePulse already has derivative DOFs, but bounds default to (-Inf, Inf)
+        # We need to update them if du_bound is specified
+        if isfinite(du_bound)
+            # Use update_bound! to set the bounds properly
+            update_bound!(base_traj, du_sym, (-du_bound, du_bound))
+            if piccolo_options.verbose
+                println("    set du bounds to ±$du_bound for CubicSplinePulse")
+            end
+        end
         base_traj
     else
         # LinearSplinePulse needs derivatives added
@@ -161,25 +169,25 @@ function SplinePulseProblem(
 end
 
 # ============================================================================= #
-# EnsembleKetTrajectory Method
+# MultiKetTrajectory Method
 # ============================================================================= #
 
 """
-    SplinePulseProblem(qtraj::EnsembleKetTrajectory{<:AbstractSplinePulse}, N; kwargs...)
+    SplinePulseProblem(qtraj::MultiKetTrajectory{<:AbstractSplinePulse}, N; kwargs...)
 
 Create a spline-based trajectory optimization problem for ensemble ket state transfers.
 
 Uses coherent fidelity objective (phases must align) for gate implementation.
 
 # Arguments  
-- `qtraj::EnsembleKetTrajectory{<:AbstractSplinePulse}`: Ensemble trajectory with spline pulse
+- `qtraj::MultiKetTrajectory{<:AbstractSplinePulse}`: Ensemble trajectory with spline pulse
 - `N::Int`: Number of timesteps
 
 # Keyword Arguments
 Same as the base `SplinePulseProblem` method.
 """
 function SplinePulseProblem(
-    qtraj::EnsembleKetTrajectory{<:AbstractSplinePulse},
+    qtraj::MultiKetTrajectory{<:AbstractSplinePulse},
     N::Int;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
     integrator_type::Symbol=:spline,  # :spline or :ensemble
@@ -201,7 +209,7 @@ function SplinePulseProblem(
 
     if piccolo_options.verbose
         pulse_type = typeof(qtraj.pulse)
-        println("    constructing SplinePulseProblem for EnsembleKetTrajectory with $(pulse_type)...")
+        println("    constructing SplinePulseProblem for MultiKetTrajectory with $(pulse_type)...")
         println("\twith $(length(qtraj.initials)) state transfers")
     end
 
@@ -212,7 +220,15 @@ function SplinePulseProblem(
     du_sym = Symbol(:d, control_sym)
     
     traj = if haskey(base_traj.components, du_sym)
-        # CubicSplinePulse already has derivative DOFs
+        # CubicSplinePulse already has derivative DOFs, but bounds default to (-Inf, Inf)
+        # We need to update them if du_bound is specified
+        if isfinite(du_bound)
+            # Use update_bound! to set the bounds properly
+            update_bound!(base_traj, du_sym, (-du_bound, du_bound))
+            if piccolo_options.verbose
+                println("    set du bounds to ±$du_bound for CubicSplinePulse")
+            end
+        end
         base_traj
     else
         # LinearSplinePulse needs derivatives added
@@ -391,6 +407,60 @@ end
     @test get_trajectory(qcp) isa NamedTrajectory
 end
 
+@testitem "SplinePulseProblem du_bound enforcement for CubicSplinePulse" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    using DirectTrajOpt
+    using LinearAlgebra
+
+    # Simple 2-level system  
+    σx = ComplexF64[0 1; 1 0]
+    σz = ComplexF64[1 0; 0 -1]
+    
+    H_drift = 0.01 * σz
+    H_drives = [σx]
+    T = 10.0
+    N = 51
+    n_drives = 1
+    
+    # Create system and pulse
+    sys = QuantumSystem(H_drift, H_drives, [1.0])
+    
+    times = collect(range(0.0, T, length=N))
+    amps = 0.1 * randn(n_drives, N)
+    derivs = zeros(n_drives, N)
+    pulse = CubicSplinePulse(amps, derivs, times)
+    
+    U_goal = ComplexF64[0 1; 1 0]
+    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+    
+    # Test with du_bound specified
+    du_bound = 5.0
+    qcp = SplinePulseProblem(qtraj, N; Q=100.0, R=1e-2, du_bound=du_bound)
+    
+    traj = get_trajectory(qcp)
+    
+    # Verify du bounds are set correctly
+    @test haskey(traj.bounds, :du)
+    du_bounds = traj.bounds[:du]
+    
+    # Bounds are stored as (lower_vector, upper_vector) tuple
+    @test length(du_bounds) == 2  # (lower, upper) tuple
+    lower_bounds, upper_bounds = du_bounds
+    @test length(lower_bounds) == n_drives
+    @test length(upper_bounds) == n_drives
+    @test all(lower_bounds .≈ -du_bound)
+    @test all(upper_bounds .≈ du_bound)
+    
+    # Test without du_bound (should default to Inf)
+    qcp_unbounded = SplinePulseProblem(qtraj, N; Q=100.0, R=1e-2)
+    traj_unbounded = get_trajectory(qcp_unbounded)
+    
+    # Without explicit du_bound, bounds should still be set to Inf (not throw error)
+    @test haskey(traj_unbounded.bounds, :du)
+end
+
 @testitem "SplinePulseProblem rejects ZeroOrderPulse" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
@@ -458,7 +528,7 @@ end
     @test !haskey(traj.components, :ddu)  # No second derivative for splines
 end
 
-@testitem "SplinePulseProblem with EnsembleKetTrajectory" begin
+@testitem "SplinePulseProblem with MultiKetTrajectory" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using NamedTrajectories
@@ -487,11 +557,11 @@ end
     ψ1 = ComplexF64[0.0, 1.0]
     
     # Create trajectory and problem
-    qtraj = EnsembleKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
+    qtraj = MultiKetTrajectory(sys, pulse, [ψ0, ψ1], [ψ1, ψ0])
     qcp = SplinePulseProblem(qtraj, N; Q=100.0, R=1e-2)
     
     @test qcp isa QuantumControlProblem
-    @test qcp.qtraj isa EnsembleKetTrajectory
+    @test qcp.qtraj isa MultiKetTrajectory
     @test get_trajectory(qcp) isa NamedTrajectory
     
     # Check trajectory has proper components for both ensemble states

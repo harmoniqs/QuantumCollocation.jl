@@ -36,8 +36,11 @@ qtraj = UnitaryTrajectory(sys, U_goal, T)  # creates zero pulse internally
 N = 51  # number of timesteps
 qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
 
-# 4. Solve
-solve!(qcp; max_iter=200)
+# 4. Solve (use 'options' keyword for IpoptOptions)
+solve!(qcp; options=IpoptOptions(max_iter=200))
+# OR pass options during problem construction:
+# qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2, ipopt_options=opts)
+# solve!(qcp)  # uses options from construction
 
 # 5. Extract results
 traj = get_trajectory(qcp)
@@ -68,7 +71,7 @@ sys = QuantumSystem(H_drift, H_drives, drive_bounds)
 initials = [ComplexF64[1,0], ComplexF64[0,1]]
 goals = [ComplexF64[0,1], ComplexF64[1,0]]
 T = 10.0
-qtraj = EnsembleKetTrajectory(sys, initials, goals, T)
+qtraj = MultiKetTrajectory(sys, initials, goals, T)
 
 qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
 solve!(qcp; max_iter=200)
@@ -104,6 +107,52 @@ qcp_mintime = MinimumTimeProblem(qcp; final_fidelity=0.99, D=50.0)
 solve!(qcp_mintime; max_iter=100)
 ```
 
+### Bootstrapping Across System Sizes
+
+**Best Practice:** When optimizing similar systems of different sizes, **pass the pulse object** between solves to preserve both controls and derivatives:
+
+```julia
+# Optimize for N=3 atoms
+sys3 = build_system(N=3)
+qtraj3 = UnitaryTrajectory(sys3, pulse_init, U_goal)
+qcp3 = SplinePulseProblem(qtraj3, N_timesteps; Q=100.0, R_du=1e-4)
+solve!(qcp3; max_iter=200)
+
+# Bootstrap to N=4 using optimized pulse directly
+optimized_pulse = qcp3.qtraj.pulse  # Contains both u and du
+sys4 = build_system(N=4)
+qtraj4 = UnitaryTrajectory(sys4, optimized_pulse, U_goal)  # Reuse pulse
+qcp4 = SplinePulseProblem(qtraj4, N_timesteps; Q=100.0, R_du=1e-4)
+solve!(qcp4; max_iter=200)
+
+# Save pulse for next bootstrap
+using JLD2
+save("optimized_N4.jld2", "pulse", qcp4.qtraj.pulse)
+```
+
+**Why this works:**
+- `Pulse` objects are system-independent (just time → control mappings)
+- Preserves full optimization state: `u` (controls) + `du` (derivatives/tangents)
+- The new system's dynamics are enforced during `solve!` via rollout constraints
+
+**Don't:**
+```julia
+# ❌ Bad: Extracting controls from NamedTrajectory loses du information
+u_old = get_trajectory(qcp3)[:u]
+du_zeros = zeros(size(u_old))  # Throws away optimized tangents!
+pulse_new = CubicSplinePulse(u_old, du_zeros, times)
+
+# ❌ Bad: Trying to transfer NamedTrajectory (has system-specific states)
+qtraj4 = bootstrap_from_trajectory(traj3, sys4)  # Incompatible states
+```
+
+**Do:**
+```julia
+# ✓ Good: Pass pulse object directly
+pulse_optimized = qcp3.qtraj.pulse  # Preserves u and du
+qtraj4 = UnitaryTrajectory(sys4, pulse_optimized, U_goal)
+```
+
 ### Robust Control (Parameter Sampling)
 
 ```julia
@@ -125,7 +174,7 @@ Parametric type hierarchy (see PiccoloQuantumObjects.jl/CONTEXT.md for details):
 AbstractQuantumTrajectory{P<:AbstractPulse}
 ├── UnitaryTrajectory{P}      # Full unitary evolution
 ├── KetTrajectory{P}          # Single state evolution  
-├── EnsembleKetTrajectory{P}  # Multiple states, shared controls
+├── MultiKetTrajectory{P}  # Multiple states, shared controls
 ├── DensityTrajectory{P}      # Density matrix evolution (WIP)
 └── SamplingTrajectory{P,Q}   # Robustness over system parameters
 ```
@@ -151,13 +200,39 @@ QuantumCollocation.jl **uses** these types and provides problem templates that b
 - For `CubicSplinePulse`: `:du` represents Hermite tangents (built into pulse)
 - Uses `DerivativeIntegrator` with spline semantics
 
+**Adding constraints to SplinePulseProblem:** When working with `SplinePulseProblem`, especially with dynamical timesteps (`Δt_bounds`), add constraints to the existing problem rather than recreating it:
+
+```julia
+# Create problem with dynamical timesteps
+qcp = SplinePulseProblem(qtraj, N; 
+    Q=100.0, R_u=1e-2, R_du=1e-4,
+    Δt_bounds=(0.01, 0.5))
+
+# Get trajectory and build additional constraints
+traj = get_trajectory(qcp)
+constraint = MyCustomConstraint(traj, ...)
+
+# Add to existing problem (preserves all problem structure)
+push!(qcp.prob.constraints, constraint)
+
+# Solve the quantum collocation problem
+solve!(qcp; options=ipopt_options)
+
+# Access results
+final_fidelity = fidelity(qcp.qtraj)       # Use qcp.qtraj for quantum operations
+u_optimized = qcp.prob.trajectory[:u]       # Use qcp.prob.trajectory for variables
+optimized_pulse = qcp.qtraj.pulse           # For saving or bootstrapping
+```
+
+**Important:** Do NOT recreate `DirectTrajOptProblem` when modifying a `SplinePulseProblem`, as this breaks the dynamical timestep mechanism and integration with the quantum trajectory.
+
 ### Quantum Integrators (`quantum_integrators.jl`)
 
 `BilinearIntegrator` dispatches on trajectory type:
 ```julia
 BilinearIntegrator(qtraj::UnitaryTrajectory, N)      # → single integrator
 BilinearIntegrator(qtraj::KetTrajectory, N)          # → single integrator
-BilinearIntegrator(qtraj::EnsembleKetTrajectory, N)  # → Vector of integrators
+BilinearIntegrator(qtraj::MultiKetTrajectory, N)  # → Vector of integrators
 BilinearIntegrator(qtraj::SamplingTrajectory, N)     # → Vector of integrators
 ```
 
@@ -236,5 +311,6 @@ src/
 1. **Pulse type determines problem template**: Use `SmoothPulseProblem` for `ZeroOrderPulse`, `SplinePulseProblem` for spline pulses
 2. **N is timesteps, not knot points**: For `N=51`, you get 50 intervals
 3. **Trajectories always have `:t`**: Time is accumulated automatically, no need for `time_dependent` flag
-4. **EnsembleKetTrajectory vs SamplingTrajectory**: Ensemble = same system, different initial states; Sampling = different systems, same initial state
+4. **MultiKetTrajectory vs SamplingTrajectory**: Ensemble = same system, different initial states; Sampling = different systems, same initial state
 5. **Fidelity vs Infidelity**: Objectives minimize infidelity, constraints bound infidelity (e.g., `1 - fidelity ≤ 1 - 0.99`)
+6. **Bootstrapping between system sizes**: Pass the **pulse object** (`qcp.qtraj.pulse`), not the `NamedTrajectory` or extracted controls. This preserves both `u` and `du` optimization state.
