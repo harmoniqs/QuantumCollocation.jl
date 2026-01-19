@@ -139,6 +139,13 @@ function sync_trajectory!(qcp::QuantumControlProblem)
     pulse = PiccoloQuantumObjects.extract_pulse(qcp.qtraj, qcp.prob.trajectory)
     PiccoloQuantumObjects.rollout!(qcp.qtraj, pulse)
     
+    # Update global parameters in the system if present
+    # Use get_system() to work with all trajectory types (including SamplingTrajectory)
+    sys = PiccoloQuantumObjects.get_system(qcp.qtraj)
+    if !isempty(sys.global_params) && qcp.prob.trajectory.global_dim > 0
+        PiccoloQuantumObjects.update_global_params!(qcp.qtraj, qcp.prob.trajectory)
+    end
+    
     return nothing
 end
 
