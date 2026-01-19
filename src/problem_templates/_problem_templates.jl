@@ -1,38 +1,37 @@
 module ProblemTemplates
 
-using ..TrajectoryInitialization
 using ..QuantumObjectives
 using ..QuantumConstraints
 using ..QuantumIntegrators
+using ..QuantumControlProblems: QuantumControlProblem, get_trajectory, get_system
 using ..Options
 
 using TrajectoryIndexingUtils
 using NamedTrajectories
 using DirectTrajOpt
 using PiccoloQuantumObjects
+using PiccoloQuantumObjects: SamplingTrajectory, MultiKetTrajectory, 
+    state_names, get_weights, AbstractSplinePulse, AbstractPulse, ZeroOrderPulse,
+    LinearSplinePulse, CubicSplinePulse
 
 using ExponentialAction
 using LinearAlgebra
 using SparseArrays
 using TestItems
 
-include("unitary_smooth_pulse_problem.jl")
-include("unitary_variational_problem.jl")
-include("unitary_minimum_time_problem.jl")
-include("unitary_sampling_problem.jl")
-include("unitary_free_phase_problem.jl")
+const ⊗ = kron
 
-include("quantum_state_smooth_pulse_problem.jl")
-include("quantum_state_minimum_time_problem.jl")
-include("quantum_state_sampling_problem.jl")
-
+include("smooth_pulse_problem.jl")
+include("spline_pulse_problem.jl")
+include("minimum_time_problem.jl")
+include("sampling_problem.jl")
 
 function apply_piccolo_options!(
     piccolo_options::PiccoloOptions,
     constraints::AbstractVector{<:AbstractConstraint},
     traj::NamedTrajectory;
-    state_names::Union{Nothing, Symbol, AbstractVector{Symbol}}=nothing,
-    state_leakage_indices::Union{Nothing, AbstractVector{Int}, AbstractVector{<:AbstractVector{Int}}}=nothing,
+    state_names::Union{Nothing,Symbol,AbstractVector{Symbol}}=nothing,
+    state_leakage_indices::Union{Nothing,AbstractVector{Int},AbstractVector{<:AbstractVector{Int}}}=nothing,
 )
     J = NullObjective(traj)
 
@@ -63,7 +62,7 @@ function apply_piccolo_options!(
         end
         push!(
             constraints,
-            TimeStepsAllEqualConstraint(traj)
+            TimeStepsAllEqualConstraint()
         )
     end
 

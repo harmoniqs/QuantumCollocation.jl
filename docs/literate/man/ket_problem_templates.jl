@@ -20,28 +20,25 @@ intial state, `ψ_init`, to a target state, `ψ_goal`.
 =#
 
 # _define the quantum system_
-T_max = 1.0
-u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
-system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], T_max, u_bounds)
+system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], [1.0, 1.0])
 ψ_init = Vector{ComplexF64}([1.0, 0.0])
 ψ_goal = Vector{ComplexF64}([0.0, 1.0])
 N = 51
-Δt = 0.2
 
 # _create the smooth pulse problem_
-state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, N, Δt);
+state_prob = QuantumStateSmoothPulseProblem(system, ψ_init, ψ_goal, N);
 
 # _check the fidelity before solving_
 println("Before: ", rollout_fidelity(state_prob.trajectory, system))
 
 # _solve the problem_
-load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_89ee72.jld2") # hide
-state_prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_89ee72.jld2") # hide
+# state_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(state_prob, max_iter=100);
 
 #=
 ```julia
-solve!(state_prob, max_iter=100, verbose=true, print_level=1);
 ```
 
 ```@raw html
@@ -81,13 +78,13 @@ min_state_prob = QuantumStateMinimumTimeProblem(state_prob, ψ_goal);
 println("Duration before: ", get_duration(state_prob.trajectory))
 
 # _solve the minimum time problem_
-load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_min_time_89ee72.jld2") # hide
-min_state_prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_state_prob_min_time_89ee72.jld2") # hide
+# min_state_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(min_state_prob, max_iter=100);
 
 #=
 ```julia
-solve!(min_state_prob, max_iter=100, verbose=true, print_level=1);
 ```
 
 ```@raw html
@@ -122,22 +119,20 @@ QuantumStateSamplingProblem
 =#
 
 # _create a sampling problem_
-T_max = 1.0
-u_bounds = [(-1.0, 1.0), (-1.0, 1.0)]
-driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], T_max, u_bounds)
-sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, N, Δt);
+driftless_system = QuantumSystem([PAULIS.X, PAULIS.Y], [1.0, 1.0])
+sampling_state_prob = QuantumStateSamplingProblem([system, driftless_system], ψ_init, ψ_goal, N);
 
 # _new keys are added to the trajectory for the new states_
 println(sampling_state_prob.trajectory.state_names)
 
 # _solve the sampling problem for a few iterations_
-load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_sampling_state_89ee72.jld2") # hide
-sampling_state_prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/ket_problem_templates_sampling_state_89ee72.jld2") # hide
+# sampling_state_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(sampling_state_prob, max_iter=25);
 
 #=
 ```julia
-solve!(sampling_state_prob, max_iter=25, verbose=true, print_level=1);
 ```
 
 ```@raw html

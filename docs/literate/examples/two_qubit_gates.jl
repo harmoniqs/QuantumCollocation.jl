@@ -13,7 +13,7 @@
 # Specifically, for a simple two-qubit system in a rotating frame, we have
 
 # ```math
-# H = J_{12} \sigma_1^x \sigma_2^x + \sum_{i \in {1,2}} a_i^R(t) {\sigma^x_i \over 2} + a_i^I(t) {\sigma^y_i \over 2}.
+# H = J_{12} \sigma_1^x \sigma_2^x + \sum_{i \in {1,2}} u_i^R(t) {\sigma^x_i \over 2} + u_i^I(t) {\sigma^y_i \over 2}.
 # ```
 
 # where
@@ -21,7 +21,7 @@
 # ```math
 # \begin{align*}
 # J_{12} &= 0.001 \text{ GHz}, \\
-# |a_i^R(t)| &\leq 0.1 \text{ GHz} \\
+# |u_i^R(t)| &\leq 0.1 \text{ GHz} \\
 # \end{align*}
 # ```
 
@@ -40,9 +40,9 @@ using CairoMakie
 ⊗(a, b) = kron(a, b)
 
 ## Define our operators
-σx = GATES[:X]
-σy = GATES[:Y]
-Id = GATES[:I]
+σx = GATES.X
+σy = GATES.Y
+Id = GATES.I
 
 ## Lift the operators to the two-qubit Hilbert space
 σx_1 = σx ⊗ Id
@@ -61,7 +61,8 @@ H_drift = J_12 * (σx ⊗ σx)
 ## Define the control Hamiltonians
 H_drives = [σx_1 / 2, σy_1 / 2, σx_2 / 2, σy_2 / 2]
 
-## Define higher derivative bounds
+## Define control (and higher derivative) bounds
+u_bound = 0.1
 du_bound = 0.0005
 ddu_bound = 0.0025
 
@@ -71,14 +72,11 @@ H_drives .*= 2π
 
 ## Define the time parameters
 N = 100 # timesteps
-T_max = 1.0 # max evolution time
-u_bounds = fill((-u_bound, u_bound), length(H_drives))
-duration = 100 # μs
-Δt = duration / N
-Δt_max = 400 / N
+T_max = 400.0 # μs (maximum duration)
+drive_bounds = fill((-u_bound, u_bound), length(H_drives))
 
 ## Define the system
-sys = QuantumSystem(H_drift, H_drives, T_max, u_bounds)
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
 
 # ## SWAP gate
 
@@ -93,27 +91,25 @@ U_goal = [
 ## Set up the problem
 prob = UnitarySmoothPulseProblem(
     sys,
-    U_goal,
-    N,
-    Δt;
+    EmbeddedOperator(U_goal, sys),
+    N;
     du_bound=du_bound,
     ddu_bound=ddu_bound,
     R_du=0.01,
     R_ddu=0.01,
-    Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
 fid_init = unitary_rollout_fidelity(prob.trajectory, sys)
 println(fid_init)
 
 # Solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_89ee72.jld2") # hide
-prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_89ee72.jld2") # hide
+# prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(prob; max_iter=100, options=IpoptOptions(eval_hessian=false))
 
 #=
 ```julia
-solve!(prob; max_iter=100)
 ```
 
 ```@raw html
@@ -207,13 +203,13 @@ plot_unitary_populations(prob.trajectory)
 min_time_prob = UnitaryMinimumTimeProblem(prob, U_goal; final_fidelity=.995)
 
 # and solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_min_time_89ee72.jld2") # hide
-min_time_prob.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_min_time_89ee72.jld2") # hide
+# min_time_prob.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(min_time_prob; max_iter=300)
 
 #=
 ```julia
-solve!(min_time_prob; max_iter=300)
 ```
 
 ```@raw html<pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
@@ -322,27 +318,25 @@ U_goal_ms = exp(im * π/4 * σx_1 * σx_2)
 
 prob_ms = UnitarySmoothPulseProblem(
     sys,
-    U_goal_ms,
-    N,
-    Δt;
+    EmbeddedOperator(U_goal, sys),
+    N;
     du_bound=du_bound,
     ddu_bound=ddu_bound,
     R_du=0.01,
     R_ddu=0.01,
-    Δt_max=Δt_max,
     piccolo_options=PiccoloOptions(bound_state=true),
 )
 fid_init = unitary_rollout_fidelity(prob_ms.trajectory, sys)
 println(fid_init)
 
 # Solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_molmer_89ee72.jld2") # hide
-prob_ms.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_molmer_89ee72.jld2") # hide
+# prob_ms.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(prob; max_iter=300)
 
 #=
 ```julia
-solve!(prob; max_iter=300)
 ```
 
 ```@raw html<pre class="documenter-example-output"><code class="nohighlight hljs ansi">    initializing optimizer...
@@ -427,13 +421,13 @@ plot_unitary_populations(prob_ms.trajectory)
 min_time_prob_ms = UnitaryMinimumTimeProblem(prob_ms, U_goal_ms; final_fidelity=.9995)
 
 # and solve the problem
-load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_molmer_min_time_89ee72.jld2") # hide
-min_time_prob_ms.trajectory = load_traj(load_path) # hide
-nothing # hide
+# load_path = joinpath(dirname(Base.active_project()), "data/two_qubit_gates_molmer_min_time_89ee72.jld2") # hide
+# min_time_prob_ms.trajectory = load_traj(load_path) # hide
+# nothing # hide
+# solve!(min_time_prob; max_iter=300)
 
 #=
 ```julia
-solve!(min_time_prob; max_iter=300)
 ```
 
 ```@raw html<pre class="documenter-example-output"><code class="nohighlight hljs ansi">   initializing optimizer...
