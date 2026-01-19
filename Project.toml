@@ -1,6 +1,6 @@
 name = "QuantumCollocation"
 uuid = "0dc23a59-5ffb-49af-b6bd-932a8ae77adf"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["Aaron Trowbridge <aaron.j.trowbridge@gmail.com> and contributors"]
 
 [deps]
