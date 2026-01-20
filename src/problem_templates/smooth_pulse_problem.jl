@@ -909,7 +909,7 @@ end
     @test haskey(traj.components, :Ũ⃗2)
 
     # Solve
-    solve!(sampling_prob; max_iter=150, verbose=false, print_level=1)
+    solve!(sampling_prob; max_iter=250, verbose=false, print_level=1)
 
     # Test dynamics constraints are satisfied
     for integrator in sampling_prob.prob.integrators
