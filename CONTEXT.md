@@ -194,11 +194,47 @@ QuantumCollocation.jl **uses** these types and provides problem templates that b
 - Adds derivative variables `:du`, `:ddu` for smoothness
 - Creates `DerivativeIntegrator` constraints enforcing `u[k+1] - u[k] = Δt * du[k]`
 - Applies quadratic regularization on `u`, `du`, `ddu`
+- Supports `global_bounds` for time-invariant parameters (requires custom integrator)
 
 **SplinePulseProblem** (for spline pulses):
 - For `LinearSplinePulse`: `:du` represents slopes (added automatically)
 - For `CubicSplinePulse`: `:du` represents Hermite tangents (built into pulse)
 - Uses `DerivativeIntegrator` with spline semantics
+- Supports `global_bounds` for time-invariant parameters (requires custom integrator)
+
+### Global Variable Bounds
+
+Both `SmoothPulseProblem` and `SplinePulseProblem` support bounds on global (time-invariant) optimization variables:
+
+```julia
+using Piccolissimo  # For HermitianExponentialIntegrator or SplineIntegrator
+
+# System with global parameter
+H = (u, t) -> u[2] * GATES.Z + u[1] * GATES.X  # δ = u[2] is global
+sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=0.1,))
+qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+
+# Integrator that supports globals
+integrator = HermitianExponentialIntegrator(qtraj, N)
+
+# Symmetric bounds: -0.5 ≤ δ ≤ 0.5
+qcp = SmoothPulseProblem(qtraj, N; 
+    integrator=integrator, 
+    global_bounds=Dict(:δ => 0.5))
+
+# Asymmetric bounds: 0.1 ≤ δ ≤ 0.8
+qcp = SmoothPulseProblem(qtraj, N; 
+    integrator=integrator,
+    global_bounds=Dict(:δ => (0.1, 0.8)))
+
+# Multiple globals with mixed bound types
+qcp = SplinePulseProblem(qtraj, N;
+    integrator=SplineIntegrator(qtraj, N; global_names=[:δ, :ω]),
+    global_bounds=Dict{Symbol, Union{Float64, Tuple{Float64,Float64}}}(
+        :δ => 0.5,           # Symmetric
+        :ω => (0.001, 0.5)   # Asymmetric
+    ))
+```
 
 **Adding constraints to SplinePulseProblem:** When working with `SplinePulseProblem`, especially with dynamical timesteps (`Δt_bounds`), add constraints to the existing problem rather than recreating it:
 
@@ -277,6 +313,7 @@ Run tests with `TestItemRunner.@run_package_tests`.
 ## Recent Changes (Update This!)
 
 ### January 2026
+- Added `global_bounds` parameter to `SmoothPulseProblem` and `SplinePulseProblem` for constraining time-invariant optimization variables
 - Removed `time_dependent=true` from test QuantumSystem constructions (`:t` is now always in trajectories)
 - Removed `adapt_trajectory`/`unadapt_trajectory` usage (control scaling removed)
 - Updated `BilinearIntegrator` signatures from `(qtraj, traj)` to `(qtraj, N)`
