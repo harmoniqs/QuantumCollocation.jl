@@ -531,7 +531,7 @@ end
     @test_skip "DensityTrajectory optimization not yet implemented"
 end
 
-@testitem "SmoothPulseProblem with MultiKetTrajectory" begin
+@testitem "SmoothPulseProblem with MultiKetTrajectory" tags=[:experimental] begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
