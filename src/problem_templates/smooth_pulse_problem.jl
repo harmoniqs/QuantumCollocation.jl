@@ -1092,162 +1092,28 @@ end
     )
 end
 
-@testitem "SmoothPulseProblem with global_data from system" begin
-    using QuantumCollocation
-    using PiccoloQuantumObjects
-    using NamedTrajectories
-    using Piccolissimo  # For HermitianExponentialIntegrator
-
-    # System with global parameters
-    T = 5.0
-    N = 10
-    
-    # H receives u = [control, δ] where δ is a global detuning
-    H = (u, t) -> begin
-        δ = u[2]  # Extract global detuning
-        δ * GATES.Z + u[1] * GATES.X
-    end
-    
-    δ_init = 0.5
-    sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=δ_init,))
-    U_goal = GATES.X
-    
-    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
-    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
-    
-    # Create integrator with global support
-    integrator = HermitianExponentialIntegrator(qtraj, N)
-    
-    @test integrator.global_names == [:δ]
-    @test integrator.global_dim == 1
-    
-    # Create problem with integrator that has global support
-    qcp = SmoothPulseProblem(
-        qtraj, N;
-        Q=100.0, R=1e-2,
-        integrator=integrator
-    )
-    
-    # Verify trajectory has global component from sys.global_params
-    traj = get_trajectory(qcp)
-    @test haskey(traj.global_components, :δ)
-    @test traj.global_dim == 1
-    @test traj.global_data[traj.global_components[:δ]][1] ≈ δ_init
-    
-    # Solve for a few iterations to verify everything works
-    solve!(qcp; max_iter=50)
-    
-    result_traj = get_trajectory(qcp)
-    @test result_traj isa NamedTrajectory
-    @test haskey(result_traj.global_components, :δ)
-end
-
-@testitem "SmoothPulseProblem with global_bounds" begin
+@testitem "SmoothPulseProblem with global_bounds error handling" begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using NamedTrajectories
     using DirectTrajOpt
-    using Piccolissimo  # For HermitianExponentialIntegrator
 
-    # System with global parameters
+    # Test that global_bounds throws an informative error when global doesn't exist
+    # (global_data must come from integrator - e.g., HermitianExponentialIntegrator from Piccolissimo)
+    
     T = 5.0
     N = 10
     
-    # H receives u = [control, δ] where δ is a global detuning
-    H = (u, t) -> begin
-        δ = u[2]  # Extract global detuning
-        δ * GATES.Z + u[1] * GATES.X
-    end
-    
-    # Start with δ outside the bounds
-    δ_init = 2.0
-    δ_bound = 0.5  # Should constrain to [-0.5, 0.5]
-    
-    sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=δ_init,))
+    sys = QuantumSystem(0.1 * GATES.Z, [GATES.X], [1.0])
     U_goal = GATES.X
     
     pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
     qtraj = UnitaryTrajectory(sys, pulse, U_goal)
     
-    # Create integrator with global support
-    integrator = HermitianExponentialIntegrator(qtraj, N)
-    
-    # Create problem with global_bounds
-    qcp = SmoothPulseProblem(
+    # Attempting to use global_bounds without globals in trajectory should error
+    @test_throws "Global variable :δ not found" SmoothPulseProblem(
         qtraj, N;
         Q=100.0, R=1e-2,
-        integrator=integrator,
-        global_bounds=Dict(:δ => δ_bound)  # Symmetric bounds ±0.5
+        global_bounds=Dict(:δ => 0.5)  # δ doesn't exist in trajectory
     )
-    
-    # Verify GlobalBoundsConstraint was added
-    @test qcp isa QuantumControlProblem
-    bounds_constraints = filter(c -> c isa GlobalBoundsConstraint, qcp.prob.constraints)
-    @test length(bounds_constraints) == 1
-    
-    # Solve
-    solve!(qcp; max_iter=100)
-    
-    # Verify bounds are satisfied
-    result_traj = get_trajectory(qcp)
-    δ_opt = result_traj.global_data[result_traj.global_components[:δ]][1]
-    @test δ_opt >= -δ_bound - 1e-5
-    @test δ_opt <= δ_bound + 1e-5
-    
-    println("  Initial δ: $δ_init (outside bounds)")
-    println("  Bounds: ±$δ_bound")
-    println("  Optimized δ: $δ_opt (should be within bounds)")
-end
-
-@testitem "SmoothPulseProblem with asymmetric global_bounds" begin
-    using QuantumCollocation
-    using PiccoloQuantumObjects
-    using NamedTrajectories
-    using DirectTrajOpt
-    using Piccolissimo  # For HermitianExponentialIntegrator
-
-    # System with global parameters
-    T = 5.0
-    N = 10
-    
-    # H receives u = [control, δ] where δ is a global detuning
-    H = (u, t) -> begin
-        δ = u[2]  # Extract global detuning
-        δ * GATES.Z + u[1] * GATES.X
-    end
-    
-    # Start with δ outside the bounds
-    δ_init = 1.5
-    δ_lb = 0.1  # Only positive values allowed
-    δ_ub = 0.8
-    
-    sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=δ_init,))
-    U_goal = GATES.X
-    
-    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
-    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
-    
-    # Create integrator with global support
-    integrator = HermitianExponentialIntegrator(qtraj, N)
-    
-    # Create problem with asymmetric global_bounds
-    qcp = SmoothPulseProblem(
-        qtraj, N;
-        Q=100.0, R=1e-2,
-        integrator=integrator,
-        global_bounds=Dict(:δ => (δ_lb, δ_ub))  # Asymmetric: [0.1, 0.8]
-    )
-    
-    # Solve
-    solve!(qcp; max_iter=100)
-    
-    # Verify bounds are satisfied
-    result_traj = get_trajectory(qcp)
-    δ_opt = result_traj.global_data[result_traj.global_components[:δ]][1]
-    @test δ_opt >= δ_lb - 1e-5
-    @test δ_opt <= δ_ub + 1e-5
-    
-    println("  Initial δ: $δ_init (outside bounds)")
-    println("  Bounds: [$δ_lb, $δ_ub]")
-    println("  Optimized δ: $δ_opt (should be within bounds)")
 end

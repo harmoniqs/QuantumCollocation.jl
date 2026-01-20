@@ -726,27 +726,20 @@ end
     @test !haskey(traj.components, :ddu)  # No second derivative for splines
 end
 
-@testitem "SplinePulseProblem with global_names" begin
+@testitem "SplinePulseProblem with global_bounds error handling" begin
     using NamedTrajectories
     using DirectTrajOpt
     using QuantumCollocation
     using PiccoloQuantumObjects
     using LinearAlgebra
-    using Piccolissimo
-    using Piccolissimo.SplineIntegrators: has_global_dependence, SplineIntegrator
     
-    # System with global parameters
+    # Test that global_bounds throws an informative error when global doesn't exist
+    # (global_data must come from integrator - e.g., SplineIntegrator from Piccolissimo)
+    
     T = 2.0
     N = 10
     
-    # H receives u = [control, δ] where δ is a global detuning
-    H = (u, t) -> begin
-        δ = u[2]  # Extract global detuning
-        δ * GATES.Z + u[1] * GATES.X
-    end
-    
-    δ_init = 0.1
-    sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=δ_init,))
+    sys = QuantumSystem(0.1 * GATES.Z, [GATES.X], [1.0])
     U_goal = GATES.X
     
     # Create pulse
@@ -754,158 +747,10 @@ end
     pulse = CubicSplinePulse(fill(0.5, 1, N), fill(0.0, 1, N), times)
     qtraj = UnitaryTrajectory(sys, pulse, U_goal)
     
-    # Create SplineIntegrator with global support
-    integrator = SplineIntegrator(qtraj, N; spline_order=3, global_names=[:δ])
-    
-    # Create problem with integrator that has global support
-    qcp = SplinePulseProblem(
+    # Attempting to use global_bounds without globals in trajectory should error
+    @test_throws "Global variable :δ not found" SplinePulseProblem(
         qtraj, N;
         Q=100.0, R=1e-2,
-        integrator=integrator
+        global_bounds=Dict(:δ => 0.5)  # δ doesn't exist in trajectory
     )
-    
-    # Verify SplineIntegrator was used
-    @test qcp isa QuantumControlProblem
-    @test length(qcp.prob.integrators) >= 1
-    
-    # Find the SplineIntegrator
-    spline_integrator = nothing
-    for int in qcp.prob.integrators
-        if int isa SplineIntegrator
-            spline_integrator = int
-            break
-        end
-    end
-    @test !isnothing(spline_integrator)
-    @test has_global_dependence(spline_integrator)
-    @test spline_integrator.global_names == [:δ]
-    
-    # Verify trajectory has global component
-    traj = get_trajectory(qcp)
-    @test haskey(traj.global_components, :δ)
-    @test traj.global_dim == 1
-    
-    # Solve for a few iterations to verify everything works
-    solve!(qcp; max_iter=10)
-    
-    result_traj = get_trajectory(qcp)
-    @test result_traj isa NamedTrajectory
-    @test haskey(result_traj.global_components, :δ)
-end
-@testitem "SplinePulseProblem with global_bounds" begin
-    using NamedTrajectories
-    using DirectTrajOpt
-    using QuantumCollocation
-    using PiccoloQuantumObjects
-    using LinearAlgebra
-    using Piccolissimo
-    using Piccolissimo.SplineIntegrators: has_global_dependence, SplineIntegrator
-    
-    # System with global parameters
-    T = 2.0
-    N = 10
-    
-    # H receives u = [control, δ] where δ is a global detuning
-    H = (u, t) -> begin
-        δ = u[2]  # Extract global detuning
-        δ * GATES.Z + u[1] * GATES.X
-    end
-    
-    # Start with δ outside the bounds to verify optimization moves it
-    δ_init = 2.0
-    δ_bound = 0.5  # Should constrain to [-0.5, 0.5]
-    
-    sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=δ_init,))
-    U_goal = GATES.X
-    
-    # Create pulse
-    times = collect(range(0, T, N))
-    pulse = CubicSplinePulse(fill(0.5, 1, N), fill(0.0, 1, N), times)
-    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
-    
-    # Create SplineIntegrator with global support
-    integrator = SplineIntegrator(qtraj, N; spline_order=3, global_names=[:δ])
-    
-    # Create problem with global_bounds
-    qcp = SplinePulseProblem(
-        qtraj, N;
-        Q=100.0, R=1e-2,
-        integrator=integrator,
-        global_bounds=Dict(:δ => δ_bound)  # Symmetric bounds ±0.5
-    )
-    
-    # Verify GlobalBoundsConstraint was added
-    @test qcp isa QuantumControlProblem
-    bounds_constraints = filter(c -> c isa GlobalBoundsConstraint, qcp.prob.constraints)
-    @test length(bounds_constraints) == 1
-    
-    # Solve
-    solve!(qcp; max_iter=100)
-    
-    # Verify bounds are satisfied
-    result_traj = get_trajectory(qcp)
-    δ_opt = result_traj.global_data[result_traj.global_components[:δ]][1]
-    @test δ_opt >= -δ_bound - 1e-5
-    @test δ_opt <= δ_bound + 1e-5
-    
-    println("  Initial δ: $δ_init (outside bounds)")
-    println("  Bounds: ±$δ_bound")
-    println("  Optimized δ: $δ_opt (should be within bounds)")
-end
-
-@testitem "SplinePulseProblem with asymmetric global_bounds" begin
-    using NamedTrajectories
-    using DirectTrajOpt
-    using QuantumCollocation
-    using PiccoloQuantumObjects
-    using LinearAlgebra
-    using Piccolissimo
-    using Piccolissimo.SplineIntegrators: has_global_dependence, SplineIntegrator
-    
-    # System with global parameters
-    T = 2.0
-    N = 10
-    
-    # H receives u = [control, δ] where δ is a global detuning
-    H = (u, t) -> begin
-        δ = u[2]  # Extract global detuning
-        δ * GATES.Z + u[1] * GATES.X
-    end
-    
-    # Start with δ outside the bounds
-    δ_init = 1.5
-    δ_lb = 0.1  # Only positive values allowed
-    δ_ub = 0.8
-    
-    sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=δ_init,))
-    U_goal = GATES.X
-    
-    # Create pulse
-    times = collect(range(0, T, N))
-    pulse = CubicSplinePulse(fill(0.5, 1, N), fill(0.0, 1, N), times)
-    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
-    
-    # Create SplineIntegrator with global support
-    integrator = SplineIntegrator(qtraj, N; spline_order=3, global_names=[:δ])
-    
-    # Create problem with asymmetric global_bounds
-    qcp = SplinePulseProblem(
-        qtraj, N;
-        Q=100.0, R=1e-2,
-        integrator=integrator,
-        global_bounds=Dict(:δ => (δ_lb, δ_ub))  # Asymmetric: [0.1, 0.8]
-    )
-    
-    # Solve
-    solve!(qcp; max_iter=100)
-    
-    # Verify bounds are satisfied
-    result_traj = get_trajectory(qcp)
-    δ_opt = result_traj.global_data[result_traj.global_components[:δ]][1]
-    @test δ_opt >= δ_lb - 1e-5
-    @test δ_opt <= δ_ub + 1e-5
-    
-    println("  Initial δ: $δ_init (outside bounds)")
-    println("  Bounds: [$δ_lb, $δ_ub]")
-    println("  Optimized δ: $δ_opt (should be within bounds)")
 end
