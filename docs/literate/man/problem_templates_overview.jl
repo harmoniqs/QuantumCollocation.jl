@@ -8,7 +8,7 @@
 # |:---------|:-----------|:-----|:---------|
 # | [`SmoothPulseProblem`](@ref) | Minimize control effort + infidelity | Fixed | Standard gate/state synthesis with smooth pulses |
 # | [`MinimumTimeProblem`](@ref) | Minimize duration | Variable | Fastest gate/state synthesis given fidelity constraint |
-# | [`SplinePulseProblem`](@ref) | Minimize control effort + infidelity | Fixed | Gate/state synthesis with spline-based pulses where the derivative variables (`du`) are the actual spline coefficients or slopes. |
+# | [`SplinePulseProblem`](@ref) | Minimize control effort + infidelity | Fixed | Gate/state synthesis with spline-based pulses (linear or cubic Hermite) |
 # | [`SamplingProblem`](@ref) | Minimize control effort + weighted sum of infidelity objectives | Fixed | Robust gate/state synthesis where the controls are shared across all systems, with differing dynamics. |
 
 # ### Smooth Pulse vs Minimum Time

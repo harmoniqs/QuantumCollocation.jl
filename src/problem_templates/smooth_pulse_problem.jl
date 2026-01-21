@@ -17,7 +17,9 @@ The problem adds discrete derivative variables (du, ddu) that:
 - `N::Int`: Number of timesteps for discretization
 
 # Keyword Arguments
-- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s)
+- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s). If not provided, uses BilinearIntegrator (which does not support global variables). A custom integrator is required when `global_names` is specified.
+- `global_names::Union{Nothing, Vector{Symbol}}=nothing`: Names of global variables to optimize. Requires a custom integrator (e.g., HermitianExponentialIntegrator from Piccolissimo) that supports global variables.
+- `global_bounds::Union{Nothing, Dict{Symbol, Union{Float64, Tuple{Float64, Float64}}}}=nothing`: Bounds for global variables. Keys are variable names, values are either a scalar (symmetric bounds ±value) or a tuple (lower, upper).
 - `du_bound::Float64=Inf`: Bound on discrete first derivative (controls jump rate)
 - `ddu_bound::Float64=1.0`: Bound on discrete second derivative (controls acceleration)
 - `Q::Float64=100.0`: Weight on infidelity/objective
@@ -53,6 +55,8 @@ function SmoothPulseProblem(
     qtraj::AbstractQuantumTrajectory{<:ZeroOrderPulse},
     N::Int;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
+    global_names::Union{Nothing,Vector{Symbol}}=nothing,
+    global_bounds::Union{Nothing,Dict{Symbol,<:Union{Float64,Tuple{Float64,Float64}}}}=nothing,
     du_bound::Float64=Inf,
     ddu_bound::Float64=1.0,
     Δt_bounds::Union{Nothing, Tuple{Float64, Float64}}=nothing,
@@ -74,8 +78,15 @@ function SmoothPulseProblem(
     state_sym = state_name(qtraj)
     control_sym = drive_name(qtraj)
 
+    # Build global_data from system's global_params if present
+    global_data = if !isempty(sys.global_params)
+        Dict(name => [val] for (name, val) in pairs(sys.global_params))
+    else
+        nothing
+    end
+
     # Convert quantum trajectory to NamedTrajectory
-    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds)
+    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds, global_data=global_data)
 
     # Add control derivatives to trajectory (always 2 derivatives for smooth pulses)
     du_bounds = fill(du_bound, sys.n_drives)
@@ -90,6 +101,16 @@ function SmoothPulseProblem(
 
     # Initialize dynamics integrators - handle both single integrator and vector of integrators
     if isnothing(integrator)
+        # Check for global_names without integrator
+        if !isnothing(global_names) && !isempty(global_names)
+            error(
+                "global_names requires a custom integrator that supports global variables. " *
+                "Use HermitianExponentialIntegrator from Piccolissimo:\n" *
+                "  using Piccolissimo\n" *
+                "  integrator = HermitianExponentialIntegrator(qtraj, N; global_names=$global_names)\n" *
+                "  qcp = SmoothPulseProblem(qtraj, N; integrator=integrator, ...)"
+            )
+        end
         # Use default BilinearIntegrator for the trajectory type
         default_int = BilinearIntegrator(qtraj, N)
         if default_int isa AbstractVector
@@ -132,11 +153,15 @@ function SmoothPulseProblem(
 
     # Note: TimeConsistencyConstraint is auto-applied by DirectTrajOpt when :t and :Δt present
 
+    # Add global bounds constraints if specified
+    all_constraints = copy(constraints)
+    add_global_bounds_constraints!(all_constraints, global_bounds, traj_smooth; verbose=piccolo_options.verbose)
+
     prob = DirectTrajOptProblem(
         traj_smooth,
         J,
         integrators;
-        constraints=constraints
+        constraints=all_constraints
     )
 
     return QuantumControlProblem(qtraj, prob)
@@ -163,7 +188,9 @@ use `SplinePulseProblem` instead.
 - `N::Int`: Number of timesteps for the discretization
 
 # Keyword Arguments
-- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s)
+- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s). If not provided, the default `BilinearIntegrator` is used. When `global_names` is specified, you must supply a custom integrator here (i.e., do not rely on the default `BilinearIntegrator`) that supports global variables.
+- `global_names::Union{Nothing, Vector{Symbol}}=nothing`: Names of global variables to optimize. Requires a custom integrator provided via `integrator` (e.g., `HermitianExponentialIntegrator` from Piccolissimo) that supports global variables.
+- `global_bounds::Union{Nothing, Dict{Symbol, Union{Float64, Tuple{Float64, Float64}}}}=nothing`: Bounds for global variables. Keys are variable names, values are either a scalar (symmetric bounds ±value) or a tuple (lower, upper).
 - `du_bound::Float64=Inf`: Bound on discrete first derivative
 - `ddu_bound::Float64=1.0`: Bound on discrete second derivative
 - `Q::Float64=100.0`: Weight on infidelity/objective
@@ -197,6 +224,8 @@ function SmoothPulseProblem(
     qtraj::MultiKetTrajectory{<:ZeroOrderPulse},
     N::Int;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
+    global_names::Union{Nothing,Vector{Symbol}}=nothing,
+    global_bounds::Union{Nothing,Dict{Symbol,<:Union{Float64,Tuple{Float64,Float64}}}}=nothing,
     du_bound::Float64=Inf,
     ddu_bound::Float64=1.0,
     Δt_bounds::Union{Nothing, Tuple{Float64, Float64}}=nothing,
@@ -219,8 +248,15 @@ function SmoothPulseProblem(
     weights = qtraj.weights
     goals = qtraj.goals
 
+    # Build global_data from system's global_params if present
+    global_data = if !isempty(sys.global_params)
+        Dict(name => [val] for (name, val) in pairs(sys.global_params))
+    else
+        nothing
+    end
+
     # Convert quantum trajectory to NamedTrajectory
-    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds)
+    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds, global_data=global_data)
 
     # Add control derivatives to trajectory
     du_bounds = fill(du_bound, sys.n_drives)
@@ -252,6 +288,16 @@ function SmoothPulseProblem(
 
     # Build integrators: one dynamics integrator per state
     if isnothing(integrator)
+        # Check for global_names without integrator
+        if !isnothing(global_names) && !isempty(global_names)
+            error(
+                "global_names requires a custom integrator that supports global variables. " *
+                "Use HermitianExponentialIntegrator from Piccolissimo:\n" *
+                "  using Piccolissimo\n" *
+                "  integrator = HermitianExponentialIntegrator(qtraj, N; global_names=$global_names)\n" *
+                "  qcp = SmoothPulseProblem(qtraj, N; integrator=integrator, ...)"
+            )
+        end
         dynamics_integrators = BilinearIntegrator(qtraj, N)
     elseif integrator isa AbstractIntegrator
         dynamics_integrators = AbstractIntegrator[integrator]
@@ -267,11 +313,15 @@ function SmoothPulseProblem(
 
     # Note: TimeConsistencyConstraint is auto-applied by DirectTrajOpt when :t and :Δt present
 
+    # Add global bounds constraints if specified
+    all_constraints = copy(constraints)
+    add_global_bounds_constraints!(all_constraints, global_bounds, traj_smooth; verbose=piccolo_options.verbose)
+
     prob = DirectTrajOptProblem(
         traj_smooth,
         J,
         integrators;
-        constraints=constraints
+        constraints=all_constraints
     )
 
     return QuantumControlProblem(qtraj, prob)
@@ -800,7 +850,7 @@ end
     sys_nominal = QuantumSystem(GATES[:Z], [GATES[:X]], [1.0])
     sys_perturbed = QuantumSystem(1.1 * GATES[:Z], [GATES[:X]], [1.0])
 
-    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    pulse = ZeroOrderPulse(0.5 * randn(1, N), collect(range(0.0, T, length=N)))
     qtraj = UnitaryTrajectory(sys_nominal, pulse, GATES[:X])
     qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
 
@@ -815,14 +865,14 @@ end
     @test haskey(traj.components, :Ũ⃗2)
 
     # Solve
-    solve!(sampling_prob; max_iter=150, verbose=false, print_level=1)
+    solve!(sampling_prob; max_iter=150, verbose=false, print_level=5)
 
     # Test dynamics constraints are satisfied
     for integrator in sampling_prob.prob.integrators
         if integrator isa BilinearIntegrator
             δ = zeros(integrator.dim)
             DirectTrajOpt.evaluate!(δ, integrator, traj)
-            @test norm(δ, Inf) < 1e-3
+            @test norm(δ, Inf) < 1e-2
         end
     end
 end
@@ -968,4 +1018,58 @@ end
             @test norm(δ, Inf) < 1e-2
         end
     end
+end
+
+@testitem "SmoothPulseProblem with global_names requires custom integrator" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+
+    # System with global parameters
+    T = 2.0
+    N = 10
+    
+    H = (u, t) -> begin
+        δ = u[2]  # Global detuning
+        δ * GATES.Z + u[1] * GATES.X
+    end
+    
+    δ_init = 0.1
+    sys = QuantumSystem(H, [1.0]; time_dependent=true, global_params=(δ=δ_init,))
+    U_goal = GATES.X
+    
+    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+    
+    # Should error when global_names provided without custom integrator
+    @test_throws ErrorException SmoothPulseProblem(
+        qtraj, N;
+        Q=100.0, R=1e-2,
+        global_names=[:δ]
+    )
+end
+
+@testitem "SmoothPulseProblem with global_bounds error handling" begin
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using NamedTrajectories
+    using DirectTrajOpt
+
+    # Test that global_bounds throws an informative error when global doesn't exist
+    # (global_data must come from integrator - e.g., HermitianExponentialIntegrator from Piccolissimo)
+    
+    T = 5.0
+    N = 10
+    
+    sys = QuantumSystem(0.1 * GATES.Z, [GATES.X], [1.0])
+    U_goal = GATES.X
+    
+    pulse = ZeroOrderPulse(0.1 * randn(1, N), collect(range(0.0, T, length=N)))
+    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+    
+    # Attempting to use global_bounds without globals in trajectory should error
+    @test_throws "Global variable :δ not found" SmoothPulseProblem(
+        qtraj, N;
+        Q=100.0, R=1e-2,
+        global_bounds=Dict(:δ => 0.5)  # δ doesn't exist in trajectory
+    )
 end

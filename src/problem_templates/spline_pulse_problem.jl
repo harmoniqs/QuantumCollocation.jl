@@ -15,29 +15,29 @@ variables (`du`) are the actual spline coefficients or slopes.
 
 ## Pulse Type Semantics
 
-**LinearSplinePulse**: The `du` variable represents the slope at each knot point. The pulse 
-amplitude is linearly interpolated between knots.
+**LinearSplinePulse**: The `du` variable represents the slope between knots. A `DerivativeIntegrator`
+constraint enforces `du[k] = (u[k+1] - u[k]) / Δt`, making the slopes consistent with the linear
+interpolation. This constraint ensures mathematical rigor while allowing slope regularization/bounds.
 
 **CubicSplinePulse** (Hermite spline): The `du` variable is the tangent/derivative at each 
-knot point, which is a true degree of freedom in Hermite interpolation.
+knot point, which is a true independent degree of freedom in Hermite interpolation. No 
+`DerivativeIntegrator` is added - the optimizer can adjust both `:u` and `:du` independently.
 
 ## Mathematical Notes
 
-For `CubicSplinePulse` (Hermite splines), the `:du` values are true degrees of freedom 
-representing the tangent/derivative at each knot point. These are independent of the 
-control values `:u` and are used directly by the `SplineIntegrator` for cubic Hermite 
-interpolation.
+- **LinearSplinePulse**: Always adds `:du` and `DerivativeIntegrator` to enforce slope consistency
+- **CubicSplinePulse**: `:du` values are Hermite tangents (unconstrained, only regularized)
 
-Unlike `SmoothPulseProblem`, there is **no `DerivativeIntegrator` constraint** enforcing 
-a finite-difference relationship between `:u` and `:du`. The optimizer is free to adjust 
-both independently, subject only to regularization.
+Both pulse types always have `:du` components in the trajectory, simplifying integrator implementations.
 
 # Arguments
 - `qtraj::AbstractQuantumTrajectory{<:AbstractSplinePulse}`: Quantum trajectory with spline pulse
 - `N::Int`: Number of timesteps for the discretization
 
 # Keyword Arguments
-- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s). If not provided, uses BilinearIntegrator.
+- `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s). If not provided, uses `BilinearIntegrator` (which does not support global variables). A custom integrator is required when `global_names` is specified.
+- `global_names::Union{Nothing, Vector{Symbol}}=nothing`: Names of global variables to optimize. Requires a custom integrator (e.g., `SplineIntegrator` from Piccolissimo) that supports global variables.
+- `global_bounds::Union{Nothing, Dict{Symbol, Union{Float64, Tuple{Float64, Float64}}}}=nothing`: Bounds for global variables. Keys are variable names, values are either a scalar (symmetric bounds ±value) or a tuple (lower, upper).
 - `du_bound::Float64=Inf`: Bound on derivative (slope) magnitude
 - `Q::Float64=100.0`: Weight on infidelity/objective
 - `R::Float64=1e-2`: Weight on regularization terms
@@ -66,6 +66,8 @@ function SplinePulseProblem(
     qtraj::AbstractQuantumTrajectory{<:AbstractSplinePulse},
     N::Int;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
+    global_names::Union{Nothing,Vector{Symbol}}=nothing,
+    global_bounds::Union{Nothing,Dict{Symbol,<:Union{Float64,Tuple{Float64,Float64}}}}=nothing,
     du_bound::Float64=Inf,
     Δt_bounds::Union{Nothing,Tuple{Float64,Float64}}=nothing,
     Q::Float64=100.0,
@@ -84,13 +86,21 @@ function SplinePulseProblem(
         println("    constructing SplinePulseProblem with $(pulse_type)...")
     end
 
-    # Convert quantum trajectory to NamedTrajectory
-    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds)
+    # Build global_data from system's global_params if present
+    global_data = if !isempty(sys.global_params)
+        Dict(name => [val] for (name, val) in pairs(sys.global_params))
+    else
+        nothing
+    end
 
-    # Add control derivatives to trajectory (1 derivative for splines)
-    # For CubicSplinePulse, :du is already included in the base trajectory
-    # For LinearSplinePulse, we need to add :du
+    # Convert quantum trajectory to NamedTrajectory
+    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds, global_data=global_data)
+
+    # Always add control derivatives to trajectory
+    # For CubicSplinePulse, :du is already included in the base trajectory (Hermite tangents)
+    # For LinearSplinePulse, we add :du explicitly (will be constrained by DerivativeIntegrator)
     du_sym = Symbol(:d, control_sym)
+    is_linear_spline = !haskey(base_traj.components, du_sym)
     
     traj = if haskey(base_traj.components, du_sym)
         # CubicSplinePulse already has derivative DOFs, but bounds default to (-Inf, Inf)
@@ -104,7 +114,7 @@ function SplinePulseProblem(
         end
         base_traj
     else
-        # LinearSplinePulse needs derivatives added
+        # LinearSplinePulse: always add derivatives
         du_bounds_vec = isfinite(du_bound) ? fill(du_bound, sys.n_drives) : Float64[]
         if !isempty(du_bounds_vec)
             add_control_derivatives(
@@ -124,6 +134,15 @@ function SplinePulseProblem(
 
     # Initialize dynamics integrators
     if isnothing(integrator)
+        if !isnothing(global_names) && !isempty(global_names)
+            error(
+                "global_names requires a custom integrator that supports global variables. " *
+                "Use SplineIntegrator from Piccolissimo:\n" *
+                "  using Piccolissimo\n" *
+                "  integrator = SplineIntegrator(qtraj, N; spline_order=$(_get_spline_order(qtraj.pulse)), global_names=$global_names)\n" *
+                "  qcp = SplinePulseProblem(qtraj, N; integrator=integrator, ...)"
+            )
+        end
         # Default to BilinearIntegrator
         default_int = BilinearIntegrator(qtraj, N)
         
@@ -154,15 +173,24 @@ function SplinePulseProblem(
     # Start with dynamics integrators
     integrators = copy(dynamics_integrators)
 
-    # Note: No DerivativeIntegrator for CubicSplinePulse - the :du values are Hermite tangents
-    # (instantaneous derivatives at knot points), not finite differences between knot values.
-    # The SplineIntegrator uses these tangents directly for cubic Hermite interpolation.
+    # Add DerivativeIntegrator for LinearSplinePulse to enforce du[k] = (u[k+1] - u[k]) / Δt
+    # For CubicSplinePulse, :du values are Hermite tangents (independent DOFs), not constrained
+    if is_linear_spline
+        push!(integrators, DerivativeIntegrator(control_sym, du_sym, traj))
+        if piccolo_options.verbose
+            println("    added DerivativeIntegrator for LinearSplinePulse")
+        end
+    end
+
+    # Add global bounds constraints if specified
+    all_constraints = copy(constraints)
+    add_global_bounds_constraints!(all_constraints, global_bounds, traj; verbose=piccolo_options.verbose)
 
     prob = DirectTrajOptProblem(
         traj,
         J,
         integrators;
-        constraints=constraints
+        constraints=all_constraints
     )
 
     return QuantumControlProblem(qtraj, prob)
@@ -192,6 +220,8 @@ function SplinePulseProblem(
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
     integrator_type::Symbol=:spline,  # :spline or :ensemble
     parallel_backend::Symbol=:manual,  # :manual (default), :threads, :gpu
+    global_names::Union{Nothing,Vector{Symbol}}=nothing,
+    global_bounds::Union{Nothing,Dict{Symbol,<:Union{Float64,Tuple{Float64,Float64}}}}=nothing,
     du_bound::Float64=Inf,
     Δt_bounds::Union{Nothing,Tuple{Float64,Float64}}=nothing,
     Q::Float64=100.0,
@@ -213,11 +243,21 @@ function SplinePulseProblem(
         println("\twith $(length(qtraj.initials)) state transfers")
     end
 
-    # Convert quantum trajectory to NamedTrajectory
-    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds)
+    # Build global_data explicitly from system global_params
+    global_data = if !isempty(sys.global_params)
+        Dict(name => [val] for (name, val) in pairs(sys.global_params))
+    else
+        nothing
+    end
 
-    # Add control derivatives to trajectory (1 derivative for splines)
+    # Convert quantum trajectory to NamedTrajectory
+    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds, global_data=global_data)
+
+    # Always add control derivatives to trajectory
+    # For CubicSplinePulse, :du is already included in the base trajectory (Hermite tangents)
+    # For LinearSplinePulse, we add :du explicitly (will be constrained by DerivativeIntegrator)
     du_sym = Symbol(:d, control_sym)
+    is_linear_spline = !haskey(base_traj.components, du_sym)
     
     traj = if haskey(base_traj.components, du_sym)
         # CubicSplinePulse already has derivative DOFs, but bounds default to (-Inf, Inf)
@@ -231,7 +271,7 @@ function SplinePulseProblem(
         end
         base_traj
     else
-        # LinearSplinePulse needs derivatives added
+        # LinearSplinePulse: always add derivatives
         du_bounds_vec = isfinite(du_bound) ? fill(du_bound, sys.n_drives) : Float64[]
         if !isempty(du_bounds_vec)
             add_control_derivatives(
@@ -251,6 +291,16 @@ function SplinePulseProblem(
 
     # Initialize dynamics integrators
     if isnothing(integrator)
+        # Check for global_names without integrator
+        if !isnothing(global_names) && !isempty(global_names)
+            error(
+                "global_names requires a custom integrator that supports global variables. " *
+                "Use SplineIntegrator from Piccolissimo:\n" *
+                "  using Piccolissimo\n" *
+                "  integrator = SplineIntegrator(qtraj, N; spline_order=$(_get_spline_order(qtraj.pulse)), global_names=$global_names)\n" *
+                "  qcp = SplinePulseProblem(qtraj, N; integrator=integrator, ...)"
+            )
+        end
         # Choose integrator type based on integrator_type parameter
         if integrator_type == :ensemble
             dynamics_integrators = EnsembleSplineIntegrator(
@@ -289,14 +339,24 @@ function SplinePulseProblem(
     # Start with dynamics integrators
     integrators = copy(dynamics_integrators)
 
-    # Note: No DerivativeIntegrator for CubicSplinePulse - the :du values are Hermite tangents
-    # (instantaneous derivatives at knot points), not finite differences between knot values.
+    # Add DerivativeIntegrator for LinearSplinePulse to enforce du[k] = (u[k+1] - u[k]) / Δt
+    # For CubicSplinePulse, :du values are Hermite tangents (independent DOFs), not constrained
+    if is_linear_spline
+        push!(integrators, DerivativeIntegrator(control_sym, du_sym, traj))
+        if piccolo_options.verbose
+            println("    added DerivativeIntegrator for LinearSplinePulse")
+        end
+    end
+
+    # Add global bounds constraints if specified
+    all_constraints = copy(constraints)
+    add_global_bounds_constraints!(all_constraints, global_bounds, traj; verbose=piccolo_options.verbose)
 
     prob = DirectTrajOptProblem(
         traj,
         J,
         integrators;
-        constraints=constraints
+        constraints=all_constraints
     )
 
     return QuantumControlProblem(qtraj, prob)
@@ -620,4 +680,33 @@ end
     @test haskey(traj.components, :Ũ⃗1)
     @test haskey(traj.components, :Ũ⃗2)
     @test !haskey(traj.components, :ddu)  # No second derivative for splines
+end
+
+@testitem "SplinePulseProblem with global_bounds error handling" begin
+    using NamedTrajectories
+    using DirectTrajOpt
+    using QuantumCollocation
+    using PiccoloQuantumObjects
+    using LinearAlgebra
+    
+    # Test that global_bounds throws an informative error when global doesn't exist
+    # (global_data must come from integrator - e.g., SplineIntegrator from Piccolissimo)
+    
+    T = 2.0
+    N = 10
+    
+    sys = QuantumSystem(0.1 * GATES.Z, [GATES.X], [1.0])
+    U_goal = GATES.X
+    
+    # Create pulse
+    times = collect(range(0, T, N))
+    pulse = CubicSplinePulse(fill(0.5, 1, N), fill(0.0, 1, N), times)
+    qtraj = UnitaryTrajectory(sys, pulse, U_goal)
+    
+    # Attempting to use global_bounds without globals in trajectory should error
+    @test_throws "Global variable :δ not found" SplinePulseProblem(
+        qtraj, N;
+        Q=100.0, R=1e-2,
+        global_bounds=Dict(:δ => 0.5)  # δ doesn't exist in trajectory
+    )
 end
