@@ -27,18 +27,24 @@ using PiccoloQuantumObjects
 # Define system: drift + 2 control Hamiltonians
 H_drift = 0.1 * PAULIS.Z
 H_drives = [PAULIS.X, PAULIS.Y]
-sys = QuantumSystem(H_drift, H_drives, 10.0, [1.0, 1.0])
+drive_bounds = [1.0, 1.0]  # symmetric bounds
+sys = QuantumSystem(H_drift, H_drives, drive_bounds)
 
-# Set up problem: system, target gate, timesteps
-U_goal = GATES.H
-N = 51
-prob = UnitarySmoothPulseProblem(sys, U_goal, N)
+# 2. Create quantum trajectory. defines problem: system, target gate, timesteps
+U_goal = GATES[:H]
+T = 10.0
+qtraj = UnitaryTrajectory(sys, U_goal, T) # creates zero pulse internally
+
+# 3. Build optimization problem
+N = 51  # number of timesteps
+qcp = SmoothPulseProblem(qtraj, N; Q=100.0, R=1e-2)
 
 # Solve!
-solve!(prob; max_iter=100)
+solve!(qcp; options=IpoptOptions(max_iter=100))
 
 # Check result
-println("Fidelity: ", unitary_rollout_fidelity(prob.trajectory, sys))
+traj = get_trajectory(qcp)
+println("Fidelity: ", fidelity(qcp))
 ```
 
 That's it! You've optimized control pulses for a quantum gate.
@@ -46,6 +52,7 @@ That's it! You've optimized control pulses for a quantum gate.
 ## What Can QuantumCollocation Do?
 
 - **Unitary gate optimization** - Find pulses to implement quantum gates
+- **Open quantum systems** - Find pulses for lindladian dynamics 
 - **State transfer** - Drive quantum states to target states
 - **Minimum time control** - Optimize gate duration
 - **Robust control** - Account for system uncertainties
@@ -69,25 +76,16 @@ where $\mathbf{Z}$ is a trajectory containing states and controls from [NamedTra
 
 We provide **problem templates** for common quantum control tasks. These templates construct a `DirectTrajOptProblem` from [DirectTrajOpt.jl](https://github.com/harmoniqs/DirectTrajOpt.jl) with appropriate objectives, constraints, and dynamics.
 
-We provide **problem templates** for common quantum control tasks. These templates construct a `DirectTrajOptProblem` from [DirectTrajOpt.jl](https://github.com/harmoniqs/DirectTrajOpt.jl) with appropriate objectives, constraints, and dynamics.
-
 ## Problem Templates
 
 Problem templates are organized by the type of quantum system being controlled:
 
-### Unitary (Gate) Templates
-- [`UnitarySmoothPulseProblem`](@ref) - Optimize smooth pulses for unitary gates
-- [`UnitaryMinimumTimeProblem`](@ref) - Minimize gate duration
-- [`UnitarySamplingProblem`](@ref) - Robust control over system variations
-- [`UnitaryFreePhaseProblem`](@ref) - Optimize up to global phase
-- [`UnitaryVariationalProblem`](@ref) - Variational quantum optimization
+### General Problem Templates
+- [`MinimumTimeProblem`](@ref) - Minimize gate duration
+- [`SamplingProblem`](@ref) - Robust control over system variations
+- [`SmoothPulseProblem`](@ref) - Optimize smooth pulses for unitary gates
+- [`SplinePulseProblem`](@ref) - Using higher order splines to characterize pulse shape
 
-### Quantum State Templates
-- [`QuantumStateSmoothPulseProblem`](@ref) - Drive states with smooth pulses
-- [`QuantumStateMinimumTimeProblem`](@ref) - Minimize state transfer time
-- [`QuantumStateSamplingProblem`](@ref) - Robust state transfer
-
-See the [Problem Templates Overview](@ref) for a detailed comparison and selection guide.
 
 See the [Problem Templates Overview](@ref) for a detailed comparison and selection guide.
 
@@ -121,7 +119,7 @@ The dynamics between knot points $(U_k, u_k)$ and $(U_{k+1}, u_{k+1})$ become no
 - 📚 [Problem Templates Overview](@ref) - Choose the right template for your problem
 - 🎯 [Working with Solutions](@ref) - Extract results, evaluate fidelity, save data
 - ⚙️ [PiccoloOptions Reference](@ref) - Configure solver options and constraints
-- 💡 [Examples](@ref) - See complete examples from single qubits to multilevel systems
+- 💡 [Two Qubit Gates](@ref), [Single Qubit Gate](@ref) - See complete examples from single qubits to multilevel systems (**MOVING TO PICCOLO DOCS**)
 
 ## Related Packages
 

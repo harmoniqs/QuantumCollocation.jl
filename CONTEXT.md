@@ -44,8 +44,7 @@ solve!(qcp; options=IpoptOptions(max_iter=200))
 
 # 5. Extract results
 traj = get_trajectory(qcp)
-U_final = iso_vec_to_operator(traj[end][:Ũ⃗])
-fid = unitary_fidelity(U_final, U_goal)
+fid = fidelity(qcp)
 ```
 
 ### State Transfer (Ket)

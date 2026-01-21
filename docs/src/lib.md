@@ -5,11 +5,6 @@
 Modules = [QuantumCollocation.ProblemTemplates]
 ```
 
-## Quantum System Templates
-```@autodocs
-Modules = [QuantumCollocation.QuantumSystemTemplates]
-```
-
 ## Quantum Objectives
 ```@autodocs
 Modules = [QuantumCollocation.QuantumObjectives]
@@ -17,12 +12,12 @@ Modules = [QuantumCollocation.QuantumObjectives]
 
 ## Quantum Constraints
 ```@autodocs
-Modules = [QuantumCollocation.QuantumObjectives]
+Modules = [QuantumCollocation.QuantumConstraints]
 ```
 
 ## Quantum Integrators
 ```@autodocs
-Modules = [QuantumCollocation.QuantumObjectives]
+Modules = [QuantumCollocation.QuantumIntegrators]
 ```
 
 ## Options
@@ -30,7 +25,7 @@ Modules = [QuantumCollocation.QuantumObjectives]
 Modules = [QuantumCollocation.Options]
 ```
 
-## Trajectory Initialization
+## Control Problems
 ```@autodocs
-Modules = [QuantumCollocation.TrajectoryInitialization]
+Modules = [QuantumCollocation.QuantumControlProblems]
 ```
