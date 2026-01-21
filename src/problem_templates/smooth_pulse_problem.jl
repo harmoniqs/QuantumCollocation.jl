@@ -421,7 +421,7 @@ end
 # Tests
 # ============================================================================= #
 
-@testitem "SmoothPulseProblem with UnitaryTrajectory" begin
+@testitem "SmoothPulseProblem with UnitaryTrajectory" tags = [ :experimental ] begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
