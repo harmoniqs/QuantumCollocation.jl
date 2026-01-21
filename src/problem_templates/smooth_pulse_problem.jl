@@ -155,29 +155,7 @@ function SmoothPulseProblem(
 
     # Add global bounds constraints if specified
     all_constraints = copy(constraints)
-    if !isnothing(global_bounds)
-        for (name, bounds) in global_bounds
-            if !haskey(traj_smooth.global_components, name)
-                error("Global variable :$name not found in trajectory. Available: $(keys(traj_smooth.global_components))")
-            end
-            global_dim = length(traj_smooth.global_components[name])
-            # Convert bounds to format expected by GlobalBoundsConstraint
-            if bounds isa Float64
-                # Symmetric scalar bounds
-                bounds_value = bounds
-            elseif bounds isa Tuple{Float64, Float64}
-                # Asymmetric scalar bounds -> convert to vector tuple
-                bounds_value = (fill(bounds[1], global_dim), fill(bounds[2], global_dim))
-            else
-                # Already in correct format (Vector or Tuple of Vectors)
-                bounds_value = bounds
-            end
-            push!(all_constraints, GlobalBoundsConstraint(name, bounds_value))
-            if piccolo_options.verbose
-                println("    added GlobalBoundsConstraint for :$name with bounds $bounds_value")
-            end
-        end
-    end
+    add_global_bounds_constraints!(all_constraints, global_bounds, traj_smooth; verbose=piccolo_options.verbose)
 
     prob = DirectTrajOptProblem(
         traj_smooth,
@@ -337,29 +315,7 @@ function SmoothPulseProblem(
 
     # Add global bounds constraints if specified
     all_constraints = copy(constraints)
-    if !isnothing(global_bounds)
-        for (name, bounds) in global_bounds
-            if !haskey(traj_smooth.global_components, name)
-                error("Global variable :$name not found in trajectory. Available: $(keys(traj_smooth.global_components))")
-            end
-            global_dim = length(traj_smooth.global_components[name])
-            # Convert bounds to format expected by GlobalBoundsConstraint
-            if bounds isa Float64
-                # Symmetric scalar bounds
-                bounds_value = bounds
-            elseif bounds isa Tuple{Float64, Float64}
-                # Asymmetric scalar bounds -> convert to vector tuple
-                bounds_value = (fill(bounds[1], global_dim), fill(bounds[2], global_dim))
-            else
-                # Already in correct format (Vector or Tuple of Vectors)
-                bounds_value = bounds
-            end
-            push!(all_constraints, GlobalBoundsConstraint(name, bounds_value))
-            if piccolo_options.verbose
-                println("    added GlobalBoundsConstraint for :$name with bounds $bounds_value")
-            end
-        end
-    end
+    add_global_bounds_constraints!(all_constraints, global_bounds, traj_smooth; verbose=piccolo_options.verbose)
 
     prob = DirectTrajOptProblem(
         traj_smooth,

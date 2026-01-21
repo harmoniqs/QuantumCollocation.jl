@@ -52,7 +52,7 @@ That's it! You've optimized control pulses for a quantum gate.
 ## What Can QuantumCollocation Do?
 
 - **Unitary gate optimization** - Find pulses to implement quantum gates
-- **Open quantum systems** - Find pulses for lindladian dynamics 
+- **Open quantum systems** - Find pulses for Lindbladian dynamics 
 - **State transfer** - Drive quantum states to target states
 - **Minimum time control** - Optimize gate duration
 - **Robust control** - Account for system uncertainties
