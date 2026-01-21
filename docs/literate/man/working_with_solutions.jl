@@ -12,9 +12,11 @@ using NamedTrajectories
 
 system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], [1.0, 1.0])
 U_goal = EmbeddedOperator(GATES.H, system)
-N = 51
+T = 10.0 # time duration
+qtraj = UnitaryTrajectory(system, U_goal, T)
 
-prob = UnitarySmoothPulseProblem(system, U_goal, N)
+N = 51 # number of timesteps
+prob = SmoothPulseProblem(qtraj, N)
 
 # The `solve!` function accepts several key options:
 
@@ -86,7 +88,7 @@ println("Total gate time: ", duration, " (arbitrary units)")
 
 # **Direct fidelity** - Compare final state to goal:
 U_final = iso_vec_to_operator(prob.trajectory.Ũ⃗[:, end])
-fid_direct = unitary_fidelity(U_final, U_goal)
+fid_direct = unitary_fidelity(U_final, U_goal.operator)
 println("Direct fidelity: ", fid_direct)
 
 # **Rollout fidelity** - Simulate dynamics forward:
@@ -165,7 +167,7 @@ using PiccoloPlots  # For visualization
 using CairoMakie
 
 # Plot controls
-fig = plot_controls(prob.trajectory)
+fig = plot(prob.trajectory)
 # save("controls.png", fig)
 
 # Extract control data for export
@@ -210,5 +212,3 @@ control_data = Dict(
 # 3. Use minimum time optimization for fastest gates
 # 4. Apply leakage constraints for multilevel systems
 # 5. Use sampling problems for robust control
-
-println("Solution evaluation complete!")

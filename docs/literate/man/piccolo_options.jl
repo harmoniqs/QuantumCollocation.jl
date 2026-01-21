@@ -20,10 +20,13 @@ opts_custom = PiccoloOptions(
 # Pass to any problem template:
 system = QuantumSystem(0.1 * PAULIS.Z, [PAULIS.X, PAULIS.Y], [1.0, 1.0])
 U_goal = EmbeddedOperator(GATES.H, system)
-N = 51
 
-prob = UnitarySmoothPulseProblem(
-    system, U_goal, N;
+T = 10.0
+qtraj = UnitaryTrajectory(system, U_goal, T)
+
+N = 51
+prob = SmoothPulseProblem(
+    qtraj, N;
     piccolo_options = opts_custom
 )
 
@@ -115,15 +118,6 @@ opts_leakage = PiccoloOptions(
 
 opts_equal_dt = PiccoloOptions(timesteps_all_equal = true)
 
-# ## Advanced Dynamics
-
-# ### `rollout_integrator::Symbol = :pade`
-# Integration method for evaluating fidelity.
-# - `:pade`: Padé approximation (default, fast)
-# - `:exp`: Matrix exponential (more accurate)
-
-opts_exp = PiccoloOptions(rollout_integrator = :exp)
-
 # ## Derivative Constraints
 
 # ### `zero_initial_and_final_derivative::Bool = false`
@@ -145,7 +139,6 @@ opts_hifi = PiccoloOptions(
     verbose = true,
     bound_state = true,
     geodesic = true,
-    rollout_integrator = :exp
 )
 
 # ### Multilevel system with leakage suppression
@@ -193,5 +186,3 @@ opts_robust = PiccoloOptions(
 # - `:pade` is fast and usually sufficient
 # - `:exp` more accurate for sensitive systems
 # - Both give same result for well-conditioned problems
-
-println("PiccoloOptions configured!")

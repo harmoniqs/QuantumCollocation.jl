@@ -1,25 +1,15 @@
 # # Problem Templates Overview
 
-# QuantumCollocation.jl provides **8 problem templates** that cover common quantum optimal control scenarios. These templates make it easy to set up and solve problems without manually constructing objectives, constraints, and integrators.
-
+# QuantumCollocation.jl provides **4 problem templates** that cover common quantum optimal control scenarios. These templates make it easy to set up and solve problems without manually constructing objectives, constraints, and integrators.
 # ## Template Comparison
 
-# | Template | State Type | Objective | Time | Use Case |
-# |:---------|:-----------|:----------|:-----|:---------|
-# | [`UnitarySmoothPulseProblem`](@ref) | Unitary | Minimize control effort + infidelity | Fixed | Standard gate synthesis with smooth pulses |
-# | [`UnitaryMinimumTimeProblem`](@ref) | Unitary | Minimize duration | Variable | Fastest gate given fidelity constraint |
-# | [`UnitarySamplingProblem`](@ref) | Unitary | Minimize control effort + infidelity | Fixed | Robust control over multiple systems |
-# | [`UnitaryFreePhase Problem`](@ref) | Unitary | Minimize control effort + infidelity | Fixed | Gate synthesis with free global phase |
-# | [`UnitaryVariationalProblem`](@ref) | Unitary | Minimize control effort + infidelity ± sensitivity | Fixed | Sensitivity/robustness to Hamiltonian terms |
-# | [`QuantumStateSmoothPulseProblem`](@ref) | Ket | Minimize control effort + infidelity | Fixed | State transfer with smooth pulses |
-# | [`QuantumStateMinimumTimeProblem`](@ref) | Ket | Minimize duration | Variable | Fastest state transfer |
-# | [`QuantumStateSamplingProblem`](@ref) | Ket | Minimize control effort + infidelity | Fixed | Robust state transfer over multiple systems |
 
-# ## Key Differences
-
-# ### Unitary vs Ket (Quantum State)
-# - **Unitary problems**: Optimize gate operations (full unitary matrices), commonly used for universal quantum control
-# - **Ket problems**: Optimize state-to-state transfers, useful for initialization and specific state preparation
+# | Template | Objective | Time | Use Case |
+# |:---------|:-----------|:-----|:---------|
+# | [`SmoothPulseProblem`](@ref) | Minimize control effort + infidelity | Fixed | Standard gate/state synthesis with smooth pulses |
+# | [`MinimumTimeProblem`](@ref) | Minimize duration | Variable | Fastest gate/state synthesis given fidelity constraint |
+# | [`SplinePulseProblem`](@ref) | Minimize control effort + infidelity | Fixed | Gate/state synthesis with spline-based pulses where the derivative variables (`du`) are the actual spline coefficients or slopes. |
+# | [`SamplingProblem`](@ref) | Minimize control effort + weighted sum of infidelity objectives | Fixed | Robust gate/state synthesis where the controls are shared across all systems, with differing dynamics. |
 
 # ### Smooth Pulse vs Minimum Time
 # - **Smooth Pulse**: Fixed total time `T × Δt`, minimizes control effort with regularization on `u`, `u̇`, `ü`
@@ -30,51 +20,41 @@
 # - Useful for robustness against parameter uncertainties or manufacturing variations
 # - Examples: different coupling strengths, detunings, or environmental conditions
 
-# ### Free Phase & Variational
-# - **Free Phase**: Optimizes global phase of target unitary (sometimes easier to reach)
-# - **Variational**: Uses sensitivity analysis to find controls that are robust or sensitive to specific Hamiltonian terms
-
 # ## Quick Selection Guide
 
 # **I want to implement a quantum gate:**
-# - Start simple? → `UnitarySmoothPulseProblem`
-# - Need speed? → `UnitaryMinimumTimeProblem`
-# - Need robustness? → `UnitarySamplingProblem`
+# - Start simple? → [`SmoothPulseProblem`](@ref) + `UnitaryTrajectory`
+# - Need speed? → [`MinimumTimeProblem`](@ref) + `UnitaryTrajectory`
+# - Need robustness? → [`SamplingProblem`](@ref) + `UnitaryTrajectory`
 
 # **I want to prepare a quantum state:**
-# - Standard case? → `QuantumStateSmoothPulseProblem`
-# - Speed critical? → `QuantumStateMinimumTimeProblem`
-# - Robust preparation? → `QuantumStateSamplingProblem`
-
-# **I'm tuning my solution:**
-# - Struggling with convergence? → Try `UnitaryFreePhase Problem`
-# - Need parameter sensitivity? → Use `UnitaryVariationalProblem`
+# - Standard case? → [`SmoothPulseProblem`](@ref) + `KetTrajectory`
+# - Speed critical? → [`MinimumTimeProblem`](@ref) + `KetTrajectory`
+# - Robust preparation? → [`SamplingProblem`](@ref) + `KetTrajectory`
 
 # ## Common Parameters
 
 # All templates share these key parameters:
 
-# ```julia
-# prob = UnitarySmoothPulseProblem(
-#     system,           # QuantumSystem defining H(u)
-#     U_goal,           # Target unitary or state
-#     N,                # Number of timesteps
-#     
-#     # Derivative bounds (smoothness)
-#     du_bound = 0.01,            # |u̇| ≤ du_bound
-#     ddu_bound = 0.001,          # |ü| ≤ ddu_bound
-#     
-#     # Regularization weights
-#     R_u = 0.01,                 # Penalize u²
-#     R_du = 0.01,                # Penalize u̇²
-#     R_ddu = 0.01,               # Penalize ü²
-#     
-#     # Initial guess
-#     u_guess = nothing,          # Optional initial controls
-#     
-#     # Advanced options
-#     piccolo_options = PiccoloOptions(...)
-# )
-# ```
+using QuantumCollocation # hide
+using PiccoloQuantumObjects # hide
+H_drift = 0.1 * PAULIS.Z # hide
+H_drives = [PAULIS.X, PAULIS.Y] # hide
+drive_bounds = [1.0, 1.0]  # hide
+sys = QuantumSystem(H_drift, H_drives, drive_bounds) # hide
+U_goal = GATES[:H] # hide
+T = 10.0  # hide
+qtraj = UnitaryTrajectory(sys, U_goal, T) # hide
+N = 51 # hide
+
+prob = SmoothPulseProblem(
+    qtraj,              # QuantumTrajectory wrapping system information, Unitary/Ket/MultiKet problem type
+    N;                  # Number of timesteps 
+
+    Q=100.0,            # Objective weighting coefficient for the infidelity
+    R=1e-2,             # Objective weighting coefficient for the controls regularization
+    
+    piccolo_options = PiccoloOptions(verbose = true),  # PiccoloOptions for solver configuration
+)
 
 # See the individual template pages for parameter details and examples.
