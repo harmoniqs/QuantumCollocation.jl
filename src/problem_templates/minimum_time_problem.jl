@@ -627,7 +627,7 @@ end
     @test duration_after <= duration_before * 1.1
 end
 
-@testitem "MinimumTimeProblem with time-dependent SamplingTrajectory (Unitary)" begin
+@testitem "MinimumTimeProblem with time-dependent SamplingTrajectory (Unitary)" tags=[:experimental] begin
     using QuantumCollocation
     using PiccoloQuantumObjects
     using DirectTrajOpt
