@@ -5,7 +5,9 @@ _get_spline_order(::LinearSplinePulse) = 1
 _get_spline_order(::CubicSplinePulse) = 3
 
 @doc raw"""
+    SplinePulseProblem(qtraj::AbstractQuantumTrajectory{<:AbstractSplinePulse}; kwargs...)
     SplinePulseProblem(qtraj::AbstractQuantumTrajectory{<:AbstractSplinePulse}, N::Int; kwargs...)
+    SplinePulseProblem(qtraj::AbstractQuantumTrajectory{<:AbstractSplinePulse}, times::AbstractVector; kwargs...)
 
 Construct a `QuantumControlProblem` for spline-based pulse optimization.
 
@@ -32,7 +34,10 @@ Both pulse types always have `:du` components in the trajectory, simplifying int
 
 # Arguments
 - `qtraj::AbstractQuantumTrajectory{<:AbstractSplinePulse}`: Quantum trajectory with spline pulse
-- `N::Int`: Number of timesteps for the discretization
+- `N_or_times`: One of:
+  - `nothing` (default): Use native knot times from spline pulse (ideal for warm-starting)
+  - `N::Int`: Number of uniformly spaced timesteps
+  - `times::AbstractVector`: Specific sample times
 
 # Keyword Arguments
 - `integrator::Union{Nothing, AbstractIntegrator, Vector{<:AbstractIntegrator}}=nothing`: Optional custom integrator(s). If not provided, uses `BilinearIntegrator` (which does not support global variables). A custom integrator is required when `global_names` is specified.
@@ -51,12 +56,17 @@ Both pulse types always have `:du` components in the trajectory, simplifying int
 
 # Examples
 ```julia
-# Linear spline pulse
+# Create system and initial pulse
 sys = QuantumSystem(H_drift, H_drives, drive_bounds)
-pulse = LinearSplinePulse(0.1 * randn(n_drives, N), collect(range(0.0, T, length=N)))
+pulse = CubicSplinePulse(u_init, du_init, times)
 qtraj = UnitaryTrajectory(sys, pulse, U_goal)
 
-qcp = SplinePulseProblem(qtraj, N; Q=100.0, R=1e-2, du_bound=10.0)
+# Use native knot structure (best for warm-starting from saved pulse)
+qcp = SplinePulseProblem(qtraj; Q=100.0, du_bound=10.0)
+
+# Or resample to different number of knots
+qcp = SplinePulseProblem(qtraj, 50; Q=100.0, du_bound=10.0)
+
 solve!(qcp; max_iter=100)
 ```
 
@@ -64,7 +74,7 @@ See also: [`SmoothPulseProblem`](@ref) for piecewise constant pulses with discre
 """
 function SplinePulseProblem(
     qtraj::AbstractQuantumTrajectory{<:AbstractSplinePulse},
-    N::Int;
+    N_or_times::Union{Nothing, Int, AbstractVector{<:Real}}=nothing;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
     global_names::Union{Nothing,Vector{Symbol}}=nothing,
     global_bounds::Union{Nothing,Dict{Symbol,<:Union{Float64,Tuple{Float64,Float64}}}}=nothing,
@@ -94,7 +104,9 @@ function SplinePulseProblem(
     end
 
     # Convert quantum trajectory to NamedTrajectory
-    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds, global_data=global_data)
+    # N_or_times=nothing uses native pulse knot times (preserves warm-start exactly)
+    base_traj = NamedTrajectory(qtraj, N_or_times; Δt_bounds=Δt_bounds, global_data=global_data)
+    N = base_traj.N  # Get actual number of timesteps
 
     # Always add control derivatives to trajectory
     # For CubicSplinePulse, :du is already included in the base trajectory (Hermite tangents)
@@ -201,7 +213,9 @@ end
 # ============================================================================= #
 
 """
-    SplinePulseProblem(qtraj::MultiKetTrajectory{<:AbstractSplinePulse}, N; kwargs...)
+    SplinePulseProblem(qtraj::MultiKetTrajectory{<:AbstractSplinePulse}; kwargs...)
+    SplinePulseProblem(qtraj::MultiKetTrajectory{<:AbstractSplinePulse}, N::Int; kwargs...)
+    SplinePulseProblem(qtraj::MultiKetTrajectory{<:AbstractSplinePulse}, times::AbstractVector; kwargs...)
 
 Create a spline-based trajectory optimization problem for ensemble ket state transfers.
 
@@ -209,14 +223,17 @@ Uses coherent fidelity objective (phases must align) for gate implementation.
 
 # Arguments  
 - `qtraj::MultiKetTrajectory{<:AbstractSplinePulse}`: Ensemble trajectory with spline pulse
-- `N::Int`: Number of timesteps
+- `N_or_times`: One of:
+  - `nothing` (default): Use native knot times from spline pulse
+  - `N::Int`: Number of uniformly spaced timesteps
+  - `times::AbstractVector`: Specific sample times
 
 # Keyword Arguments
 Same as the base `SplinePulseProblem` method.
 """
 function SplinePulseProblem(
     qtraj::MultiKetTrajectory{<:AbstractSplinePulse},
-    N::Int;
+    N_or_times::Union{Nothing, Int, AbstractVector{<:Real}}=nothing;
     integrator::Union{Nothing,AbstractIntegrator,Vector{<:AbstractIntegrator}}=nothing,
     integrator_type::Symbol=:spline,  # :spline or :ensemble
     parallel_backend::Symbol=:manual,  # :manual (default), :threads, :gpu
@@ -251,7 +268,9 @@ function SplinePulseProblem(
     end
 
     # Convert quantum trajectory to NamedTrajectory
-    base_traj = NamedTrajectory(qtraj, N; Δt_bounds=Δt_bounds, global_data=global_data)
+    # N_or_times=nothing uses native pulse knot times (preserves warm-start exactly)
+    base_traj = NamedTrajectory(qtraj, N_or_times; Δt_bounds=Δt_bounds, global_data=global_data)
+    N = base_traj.N  # Get actual number of timesteps
 
     # Always add control derivatives to trajectory
     # For CubicSplinePulse, :du is already included in the base trajectory (Hermite tangents)
@@ -367,13 +386,13 @@ end
 # ============================================================================= #
 
 """
-    SplinePulseProblem(qtraj::AbstractQuantumTrajectory, N::Int; kwargs...)
+    SplinePulseProblem(qtraj::AbstractQuantumTrajectory, N_or_times; kwargs...)
 
 Fallback method that provides helpful error for non-spline pulse types.
 """
 function SplinePulseProblem(
     qtraj::AbstractQuantumTrajectory{P},
-    N::Int;
+    N_or_times::Union{Nothing, Int, AbstractVector{<:Real}}=nothing;
     kwargs...
 ) where P <: AbstractPulse
     pulse_type = P
