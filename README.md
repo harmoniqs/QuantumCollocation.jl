@@ -1,3 +1,13 @@
+# PLEASE READ
+
+> [!WARNING]  
+> QuantumCollocation.jl is no-longer a standalone package in the Piccolo.jl ecosystem.
+> This package has been migrated into the Piccolo.jl meta-package, which is now monolithic
+> and contains QuantumCollocation.jl, PiccoloPlots.jl, and PiccoloQuantumObjects.jl. This
+> migration happened as of version [v1.0.0](https://github.com/harmoniqs/Piccolo.jl/releases/tag/v1.0.0) of Piccolo.jl
+> All future development will take place in [Piccolo.jl](https://github.com/harmoniqs/Piccolo.jl), please make issues
+> and pull requests there!
+
 <!--```@raw html-->
 <div align="center">
   <a href="https://github.com/harmoniqs/Piccolo.jl">
